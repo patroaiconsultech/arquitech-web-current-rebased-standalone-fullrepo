@@ -32,6 +32,10 @@ const palette = {
   success: "#88f3a0",
 };
 
+const ARQUITECH_REGISTER_CODE = String(
+  import.meta.env.VITE_ARQUITECH_REGISTER_CODE || "ARQUITECH777"
+).trim() || "ARQUITECH777";
+
 const shell = {
   minHeight: "100vh",
   display: "grid",
@@ -272,35 +276,50 @@ function readAuthJourneyContext(search = "") {
   try {
     const params = new URLSearchParams(search || window.location.search || "");
     const source = String(params.get("source") || "").trim();
+    const product = String(params.get("product") || "").trim();
+    const agent = String(params.get("agent") || "").trim();
     const entry = String(params.get("entry") || "").trim();
     const mode = String(params.get("mode") || "").trim();
     const onboarding = params.get("onboarding") === "1";
     const prechat = params.get("prechat") === "1";
     const beta = params.get("beta") === "1";
     const returnTo = String(params.get("returnTo") || params.get("next") || "").trim();
+    const normalizedSource = source.toLowerCase();
+    const normalizedProduct = product.toLowerCase();
+    const normalizedAgent = agent.toLowerCase();
+    const fromArquitech =
+      normalizedSource.includes("arquitech") ||
+      normalizedProduct.includes("arquitech") ||
+      normalizedAgent === "aria";
 
     return {
       source,
+      product,
+      agent,
       entry,
       mode,
       onboarding,
       prechat,
       beta,
       returnTo,
+      fromArquitech,
       fromAvatar: entry === "avatar" || prechat,
-      fromDemo: source.includes("demo"),
-      fromPatroai: source.includes("patroai"),
-      fromOrkio: source.includes("orkio"),
+      fromDemo: normalizedSource.includes("demo"),
+      fromPatroai: normalizedSource.includes("patroai"),
+      fromOrkio: normalizedSource.includes("orkio"),
     };
   } catch {
     return {
       source: "",
+      product: "",
+      agent: "",
       entry: "",
       mode: "",
       onboarding: false,
       prechat: false,
       beta: false,
       returnTo: "",
+      fromArquitech: false,
       fromAvatar: false,
       fromDemo: false,
       fromPatroai: false,
@@ -311,6 +330,7 @@ function readAuthJourneyContext(search = "") {
 
 function getAuthPresentation({ mode, otpMode, journey }) {
   const safeMode = otpMode ? "otp" : mode || "login";
+  const fromArquitech = !!journey?.fromArquitech;
   const fromAvatar = !!journey?.fromAvatar;
   const fromDemo = !!journey?.fromDemo;
   const fromPatroai = !!journey?.fromPatroai;
@@ -351,6 +371,19 @@ function getAuthPresentation({ mode, otpMode, journey }) {
       panelBody:
         "Após atualizar a senha, você poderá entrar novamente e continuar no ambiente Orkio.",
       steps: ["Nova senha", "Conta protegida", "Login liberado"],
+    };
+  }
+
+  if (safeMode === "register" && fromArquitech) {
+    return {
+      badge: "Arquitech · ARIA",
+      title: "Crie sua conta para conversar com a ARIA",
+      subtitle:
+        "Acesse a Arquitech com a ARIA como superagente única para diagnóstico, briefing, escopo, riscos, documentos e próximos passos.",
+      panelTitle: "Arquitech preserva o contexto",
+      panelBody:
+        "Origem, intenção e retorno pós-login são mantidos para abrir o console diretamente no modo Arquitech.",
+      steps: ["Conta segura", "ARIA única", "Diagnóstico inicial"],
     };
   }
 
@@ -500,7 +533,18 @@ export default function AuthPage() {
       const onboarding = params.get("onboarding");
       const prechat = params.get("prechat");
 
-      if (entry === "avatar" || onboarding === "1" || prechat === "1" || source.includes("demo")) {
+      const product = String(params.get("product") || "").toLowerCase();
+      const agent = String(params.get("agent") || "").toLowerCase();
+
+      if (
+        entry === "avatar" ||
+        onboarding === "1" ||
+        prechat === "1" ||
+        source.includes("demo") ||
+        source.includes("arquitech") ||
+        product.includes("arquitech") ||
+        agent === "aria"
+      ) {
         return "register";
       }
 
@@ -541,6 +585,22 @@ export default function AuthPage() {
     () => getAuthPresentation({ mode, otpMode, journey }),
     [mode, otpMode, journey]
   );
+
+  useEffect(() => {
+    if (!journey?.fromArquitech) return;
+
+    setMode((prev) => (prev === "register" ? prev : "register"));
+    setAccessCode((prev) => prev || ARQUITECH_REGISTER_CODE);
+    setSelectedPlan((prev) => prev || "free_trial");
+
+    try {
+      const url = new URL(window.location.href);
+      if (!url.searchParams.get("mode")) {
+        url.searchParams.set("mode", "register");
+        window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+      }
+    } catch {}
+  }, [journey?.fromArquitech]);
 
   const token = getToken();
   const currentUser = getUser();
@@ -698,21 +758,25 @@ export default function AuthPage() {
   }
 
   async function completeRegistration({ nameValue, emailValue, passwordValue, accessCodeValue = "" }) {
+    const isArquitechFlow = !!journey?.fromArquitech;
     const registerPayload = {
       tenant,
       email: emailValue,
       name: nameValue,
       password: passwordValue,
-      access_code: accessCodeValue || undefined,
+      access_code: accessCodeValue || (isArquitechFlow ? ARQUITECH_REGISTER_CODE : undefined),
       accept_terms: acceptTerms,
       marketing_consent: false,
+      source: isArquitechFlow ? "arquitech" : journey?.source || undefined,
+      product: isArquitechFlow ? "arquitech" : journey?.product || undefined,
+      agent: isArquitechFlow ? "aria" : journey?.agent || undefined,
     };
 
     stagePrechatImport({
       email: emailValue,
       name: nameValue,
       trial_days: 7,
-      source: "auth-register",
+      source: journey?.fromArquitech ? "arquitech-register" : "auth-register",
     });
 
     await apiFetch("/api/auth/register", {
@@ -737,7 +801,15 @@ export default function AuthPage() {
         method: "POST",
         org: tenant,
         skipAuthRedirect: true,
-        body: { tenant, email: emailValue, password: passwordValue },
+        body: {
+          tenant,
+          email: emailValue,
+          password: passwordValue,
+          access_code: accessCodeValue || (journey?.fromArquitech ? ARQUITECH_REGISTER_CODE : undefined),
+          source: journey?.fromArquitech ? "arquitech" : journey?.source || undefined,
+          product: journey?.fromArquitech ? "arquitech" : journey?.product || undefined,
+          agent: journey?.fromArquitech ? "aria" : journey?.agent || undefined,
+        },
       },
       AUTH_REQUEST_TIMEOUT_MS
     );
@@ -877,6 +949,10 @@ export default function AuthPage() {
             tenant,
             email: emailNormalized,
             password,
+            access_code: journey?.fromArquitech ? (accessCode || ARQUITECH_REGISTER_CODE) : accessCode || undefined,
+            source: journey?.fromArquitech ? "arquitech" : journey?.source || undefined,
+            product: journey?.fromArquitech ? "arquitech" : journey?.product || undefined,
+            agent: journey?.fromArquitech ? "aria" : journey?.agent || undefined,
           },
         },
         AUTH_REQUEST_TIMEOUT_MS
@@ -1528,7 +1604,9 @@ export default function AuthPage() {
               }}
             >
               <strong style={{ color: palette.goldSoft }}>Origem reconhecida:</strong>{" "}
-              {journey.fromAvatar
+              {journey.fromArquitech
+                ? "landing Arquitech / ARIA"
+                : journey.fromAvatar
                 ? "avatar Orkio / pré-chat"
                 : journey.fromDemo
                 ? "demonstração Patroai"
