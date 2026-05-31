@@ -36,6 +36,32 @@ const ARQUITECH_REGISTER_CODE = String(
   import.meta.env.VITE_ARQUITECH_REGISTER_CODE || "ARQUITECH777"
 ).trim() || "ARQUITECH777";
 
+const ARQUITECH_APP_PATH =
+  "/app?source=arquitech&agent=aria&product=arquitech&onboarding=1";
+const ARQUITECH_GATE_STORAGE_KEY = "arquitech_access_gate_passed";
+
+function markArquitechAccessPassed() {
+  try {
+    localStorage.setItem(ARQUITECH_GATE_STORAGE_KEY, "1");
+  } catch {}
+}
+
+function resolvePostAuthPath({ journey, location, user }) {
+  if (journey?.fromArquitech) {
+    markArquitechAccessPassed();
+    return ARQUITECH_APP_PATH;
+  }
+
+  const redirect = sessionStorage.getItem("post_auth_redirect");
+
+  return (
+    consumeReturnTo(location) ||
+    (isAdmin(user) && isAuthorizedAdminEmail(user?.email)
+      ? "/admin"
+      : redirect || DEFAULT_AFTER_LOGIN_PATH || "/app")
+  );
+}
+
 const shell = {
   minHeight: "100vh",
   display: "grid",
@@ -639,17 +665,11 @@ export default function AuthPage() {
     const user = getUser();
 
     if (existingToken && user && isApproved(user) && !redirectedAfterLoginRef.current) {
-      const redirect = sessionStorage.getItem("post_auth_redirect");
-      const next =
-        consumeReturnTo(location) ||
-        (isAdmin(user) && isAuthorizedAdminEmail(user?.email)
-          ? "/admin"
-          : redirect || DEFAULT_AFTER_LOGIN_PATH || "/app");
-
+      const next = resolvePostAuthPath({ journey, location, user });
       sessionStorage.removeItem("post_auth_redirect");
       nav(next, { replace: true });
     }
-  }, [location, nav]);
+  }, [journey, location, nav]);
 
   useEffect(() => {
     return () => {
@@ -731,12 +751,7 @@ export default function AuthPage() {
     }
 
     const storedUser = getUser();
-    const redirect = sessionStorage.getItem("post_auth_redirect");
-    const next =
-      consumeReturnTo(location) ||
-      (isAdmin(storedUser) && isAuthorizedAdminEmail(storedUser?.email)
-        ? "/admin"
-        : redirect || DEFAULT_AFTER_LOGIN_PATH || "/app");
+    const next = resolvePostAuthPath({ journey, location, user: storedUser });
 
     sessionStorage.removeItem("post_auth_redirect");
     redirectedAfterLoginRef.current = true;
@@ -790,7 +805,7 @@ export default function AuthPage() {
       email: emailValue,
       tenant,
       name: nameValue,
-      accessCode: accessCodeValue || "",
+      accessCode: accessCodeValue || (isArquitechFlow ? ARQUITECH_REGISTER_CODE : ""),
     });
     setPendingEmail(emailValue);
     setOtpMode(true);
@@ -819,7 +834,7 @@ export default function AuthPage() {
         email: loginData.email || emailValue,
         tenant,
         name: nameValue,
-        accessCode: accessCodeValue || "",
+        accessCode: accessCodeValue || (isArquitechFlow ? ARQUITECH_REGISTER_CODE : ""),
       });
       setPendingEmail(loginData.email || emailValue);
       setStatus(loginData.message || "Código enviado. Verifique seu e-mail para entrar.");
