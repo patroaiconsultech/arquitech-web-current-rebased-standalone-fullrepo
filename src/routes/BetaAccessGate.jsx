@@ -2,6 +2,9 @@ import React, { useMemo, useState } from "react";
 
 const PUBLIC_CODE = "EFATAH777";
 const STORAGE_KEY = "orkio_internal_gate_passed";
+const ARQUITECH_STORAGE_KEY = "arquitech_access_gate_passed";
+const TOKEN_KEY = "orkio_token";
+const USER_KEY = "orkio_user";
 
 function normalize(value) {
   return String(value || "").trim();
@@ -24,31 +27,90 @@ function apiUrl(path) {
   return `${cleanBase}${cleanPath}`;
 }
 
+function readSearchContext() {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    const source = String(params.get("source") || "").toLowerCase();
+    const product = String(params.get("product") || "").toLowerCase();
+    const agent = String(params.get("agent") || "").toLowerCase();
+
+    return {
+      source,
+      product,
+      agent,
+      isArquitech:
+        source.includes("arquitech") ||
+        product.includes("arquitech") ||
+        agent === "aria",
+    };
+  } catch {
+    return {
+      source: "",
+      product: "",
+      agent: "",
+      isArquitech: false,
+    };
+  }
+}
+
+function readStoredUser() {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function hasAuthToken() {
+  try {
+    return Boolean(localStorage.getItem(TOKEN_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function isArquitechUser(user) {
+  if (!user) return false;
+
+  const signupSource = String(user.signup_source || "").toLowerCase();
+  const productScope = String(user.product_scope || "").toLowerCase();
+  const usageTier = String(user.usage_tier || "").toLowerCase();
+  const codeLabel = String(user.signup_code_label || "").toLowerCase();
+
+  return (
+    signupSource.includes("arquitech") ||
+    productScope.includes("arquitech") ||
+    usageTier.includes("arquitech") ||
+    codeLabel.includes("arquitech")
+  );
+}
+
+function markArquitechPassed() {
+  try {
+    localStorage.setItem(ARQUITECH_STORAGE_KEY, "1");
+  } catch {}
+}
+
+function hasArquitechPass() {
+  try {
+    return localStorage.getItem(ARQUITECH_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function isAppAuthPath() {
+  try {
+    const pathname = window.location.pathname || "/";
+    return pathname === "/auth" || pathname === "/app" || pathname === "/orkio/app";
+  } catch {
+    return false;
+  }
+}
+
 export default function BetaAccessGate({ children = null }) {
-  const isArquitechDirectAccess = useMemo(() => {
-    try {
-      const path = String(window.location.pathname || "").replace(/\/+$/, "") || "/";
-      const params = new URLSearchParams(window.location.search || "");
-
-      const source = String(params.get("source") || "").trim().toLowerCase();
-      const product = String(params.get("product") || "").trim().toLowerCase();
-      const agent = String(params.get("agent") || "").trim().toLowerCase();
-
-      const isArquitechContext =
-        source === "arquitech" ||
-        product === "arquitech" ||
-        agent === "aria";
-
-      const isAllowedArquitechPath =
-        path === "/auth" ||
-        path === "/app" ||
-        path === "/orkio/app";
-
-      return Boolean(children && isArquitechContext && isAllowedArquitechPath);
-    } catch {
-      return false;
-    }
-  }, [children]);
+  const context = useMemo(() => readSearchContext(), []);
 
   const urlAllowsInternal = useMemo(() => {
     try {
@@ -161,8 +223,21 @@ export default function BetaAccessGate({ children = null }) {
     }
   }
 
-  if (isArquitechDirectAccess && children) return children;
-  if (internalPassed && children) return children;
+  const storedUser = readStoredUser();
+  const tokenPresent = hasAuthToken();
+  const arquitechContext = context.isArquitech;
+  const arquitechSession =
+    hasArquitechPass() ||
+    isArquitechUser(storedUser) ||
+    (tokenPresent && isAppAuthPath());
+
+  if (arquitechContext) {
+    markArquitechPassed();
+  }
+
+  if ((internalPassed || arquitechContext || arquitechSession) && children) {
+    return children;
+  }
 
   const shell = {
     minHeight: "100vh",
