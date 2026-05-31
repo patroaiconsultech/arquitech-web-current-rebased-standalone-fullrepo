@@ -1,0 +1,23 @@
+{
+  "id": "/",
+  "name": "Arquitech",
+  "short_name": "Arquitech",
+  "description": "Arquitech - arquitetura assistida por IA com ARIA.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#1f211c",
+  "background_color": "#f6f0e6",
+  "icons": [
+    {
+      "src": "/icons/orkio-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/orkio-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

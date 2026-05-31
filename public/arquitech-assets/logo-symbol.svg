@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Arquitech">
+  <rect width="128" height="128" rx="30" fill="#2f2a24"/>
+  <path d="M28 86V42l36-18 36 18v44" fill="none" stroke="#f8f3ea" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M42 86V54h44v32" fill="none" stroke="#b08d57" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50 70h28M64 54v32" stroke="#f8f3ea" stroke-width="5" stroke-linecap="round" opacity=".72"/>
+</svg>
