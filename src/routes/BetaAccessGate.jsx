@@ -2,15 +2,9 @@ import React, { useMemo, useState } from "react";
 
 const PUBLIC_CODE = "EFATAH777";
 const STORAGE_KEY = "orkio_internal_gate_passed";
-const ARQUITECH_PUBLIC_CODE = "ARQUITECH777";
-const ARQUITECH_STORAGE_KEY = "arquitech_register_gate_passed";
 
 function normalize(value) {
   return String(value || "").trim();
-}
-
-function normalizeCode(value) {
-  return normalize(value).toUpperCase();
 }
 
 function apiUrl(path) {
@@ -31,24 +25,30 @@ function apiUrl(path) {
 }
 
 export default function BetaAccessGate({ children = null }) {
-  const isArquitechAccess = useMemo(() => {
+  const isArquitechDirectAccess = useMemo(() => {
     try {
+      const path = String(window.location.pathname || "").replace(/\/+$/, "") || "/";
       const params = new URLSearchParams(window.location.search || "");
-      const source = normalize(params.get("source")).toLowerCase();
-      const product = normalize(params.get("product")).toLowerCase();
-      const agent = normalize(params.get("agent")).toLowerCase();
-      const path = String(window.location.pathname || "").toLowerCase();
 
-      return (
+      const source = String(params.get("source") || "").trim().toLowerCase();
+      const product = String(params.get("product") || "").trim().toLowerCase();
+      const agent = String(params.get("agent") || "").trim().toLowerCase();
+
+      const isArquitechContext =
         source === "arquitech" ||
         product === "arquitech" ||
-        agent === "aria" ||
-        path.includes("arquitech")
-      );
+        agent === "aria";
+
+      const isAllowedArquitechPath =
+        path === "/auth" ||
+        path === "/app" ||
+        path === "/orkio/app";
+
+      return Boolean(children && isArquitechContext && isAllowedArquitechPath);
     } catch {
       return false;
     }
-  }, []);
+  }, [children]);
 
   const urlAllowsInternal = useMemo(() => {
     try {
@@ -67,14 +67,6 @@ export default function BetaAccessGate({ children = null }) {
     }
   });
 
-  const [arquitechPassed, setArquitechPassed] = useState(() => {
-    try {
-      return localStorage.getItem(ARQUITECH_STORAGE_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
-
   const [code, setCode] = useState("");
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [error, setError] = useState("");
@@ -90,9 +82,6 @@ export default function BetaAccessGate({ children = null }) {
   });
 
   const internalCode = normalize(import.meta.env.VITE_ORKIO_INTERNAL_GATE_CODE);
-  const arquitechGateCode = normalize(
-    import.meta.env.VITE_ARQUITECH_REGISTER_GATE_CODE || ARQUITECH_PUBLIC_CODE
-  );
 
   function unlockInternal() {
     try {
@@ -101,32 +90,13 @@ export default function BetaAccessGate({ children = null }) {
     setInternalPassed(true);
   }
 
-  function unlockArquitech() {
-    try {
-      localStorage.setItem(ARQUITECH_STORAGE_KEY, "1");
-    } catch {}
-    setArquitechPassed(true);
-  }
-
   function submitCode(e) {
     e?.preventDefault?.();
 
-    const safe = normalizeCode(code);
+    const safe = normalize(code).toUpperCase();
 
-    if (internalCode && safe === normalizeCode(internalCode)) {
+    if (internalCode && safe === internalCode.toUpperCase()) {
       unlockInternal();
-      return;
-    }
-
-    if (isArquitechAccess) {
-      if (arquitechGateCode && safe === normalizeCode(arquitechGateCode)) {
-        setError("");
-        unlockArquitech();
-        return;
-      }
-
-      setError("Código Arquitech inválido. Verifique o convite recebido.");
-      setWaitlistOpen(false);
       return;
     }
 
@@ -191,15 +161,13 @@ export default function BetaAccessGate({ children = null }) {
     }
   }
 
-  if ((internalPassed || (isArquitechAccess && arquitechPassed)) && children) {
-    return children;
-  }
+  if (isArquitechDirectAccess && children) return children;
+  if (internalPassed && children) return children;
 
   const shell = {
     minHeight: "100vh",
-    background: isArquitechAccess
-      ? "radial-gradient(circle at 18% 12%, rgba(185,145,84,0.30), transparent 34%), radial-gradient(circle at 82% 0%, rgba(45,62,79,0.30), transparent 32%), #0b0a08"
-      : "radial-gradient(circle at 18% 12%, rgba(124,92,255,0.28), transparent 34%), radial-gradient(circle at 82% 0%, rgba(245,158,11,0.20), transparent 32%), #070914",
+    background:
+      "radial-gradient(circle at 18% 12%, rgba(124,92,255,0.28), transparent 34%), radial-gradient(circle at 82% 0%, rgba(245,158,11,0.20), transparent 32%), #070914",
     color: "#fff",
     fontFamily:
       "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
@@ -232,23 +200,13 @@ export default function BetaAccessGate({ children = null }) {
   const button = {
     border: 0,
     borderRadius: 16,
-    background: isArquitechAccess
-      ? "linear-gradient(135deg, #f8fafc, #d6b16a)"
-      : "linear-gradient(135deg, #f8fafc, #facc15)",
+    background: "linear-gradient(135deg, #f8fafc, #facc15)",
     color: "#111827",
     padding: "14px 18px",
     fontWeight: 950,
     cursor: busy ? "default" : "pointer",
     opacity: busy ? 0.7 : 1,
   };
-
-  const gateBadge = isArquitechAccess ? "ARQUITECH" : "ORKIO OS";
-  const gateTitle = isArquitechAccess
-    ? "Acesso fundador Arquitech"
-    : "Programa de Evolução Controlada";
-  const gateIntro = isArquitechAccess
-    ? "A Arquitech está em liberação controlada. Digite o código de convite para acessar o cadastro e iniciar a experiência com a ARIA."
-    : "Estamos realizando melhorias estruturais na nova geração do ORKIO OS. Neste momento, o acesso antecipado está temporariamente restrito para garantir a melhor experiência possível.";
 
   return (
     <main style={shell}>
@@ -258,11 +216,11 @@ export default function BetaAccessGate({ children = null }) {
             fontSize: 12,
             letterSpacing: "0.18em",
             textTransform: "uppercase",
-            color: isArquitechAccess ? "#d6b16a" : "#facc15",
+            color: "#facc15",
             fontWeight: 900,
           }}
         >
-          {gateBadge}
+          ORKIO OS
         </div>
 
         <h1
@@ -272,7 +230,7 @@ export default function BetaAccessGate({ children = null }) {
             lineHeight: 1.02,
           }}
         >
-          {gateTitle}
+          Programa de Evolução Controlada
         </h1>
 
         {!waitlistOpen && !sent ? (
@@ -285,35 +243,20 @@ export default function BetaAccessGate({ children = null }) {
                 maxWidth: 640,
               }}
             >
-              {gateIntro}
+              Estamos realizando melhorias estruturais na nova geração do ORKIO OS.
+              Neste momento, o acesso antecipado está temporariamente restrito para
+              garantir a melhor experiência possível.
             </p>
-
-            {isArquitechAccess ? (
-              <div
-                style={{
-                  marginTop: 18,
-                  borderRadius: 18,
-                  border: "1px solid rgba(214,177,106,0.28)",
-                  background: "rgba(214,177,106,0.08)",
-                  padding: 14,
-                  color: "rgba(255,255,255,0.82)",
-                  lineHeight: 1.55,
-                }}
-              >
-                A liberação por código Arquitech permite acessar a página de cadastro
-                deste fluxo. Ela não libera o acesso interno global do Orkio.
-              </div>
-            ) : null}
 
             <form onSubmit={submitCode} style={{ marginTop: 24, display: "grid", gap: 12 }}>
               <label style={{ display: "grid", gap: 8 }}>
                 <span style={{ color: "rgba(255,255,255,0.78)", fontWeight: 800 }}>
-                  {isArquitechAccess ? "Código de convite Arquitech" : "Código de acesso"}
+                  Código de acesso
                 </span>
                 <input
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder={isArquitechAccess ? "Digite seu código Arquitech" : "Digite seu código"}
+                  placeholder="Digite seu código"
                   autoFocus
                   style={field}
                 />
