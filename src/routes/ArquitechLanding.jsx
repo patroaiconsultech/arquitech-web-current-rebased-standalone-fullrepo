@@ -1,127 +1,192 @@
 import React from "react";
 import { Link } from "react-router-dom";
+
 import "../styles/arquitech.css";
 
+/**
+ * GLIP-01 — Narrative & Brand Layer
+ *
+ * Observação operacional:
+ * Os parâmetros abaixo preservam o hardlock técnico já existente no fluxo Arquitech.
+ * A experiência visível passa a ser GLIP + Aria, sem expor Orkio/PatroAI ao usuário.
+ */
 const authUrl = "/auth?source=arquitech&agent=aria&product=arquitech&onboarding=1";
 
-const capabilities = [
-  "Briefings inteligentes",
-  "Escopos e checklists",
-  "Propostas e cronogramas",
-  "Gestão de riscos",
-  "Documentação de apoio",
-  "Integrações futuras",
+const modules = [
+  {
+    eyebrow: "GLIP CRM",
+    title: "Clientes e briefings",
+    text:
+      "Organize leads, dados do cliente, briefing inicial, necessidades do projeto e próximos passos em uma jornada clara.",
+  },
+  {
+    eyebrow: "GLIP Proposal",
+    title: "Propostas configuráveis",
+    text:
+      "Estruture escopo, etapas, prazos, honorários, versões e aprovações antes de avançar para contratação.",
+  },
+  {
+    eyebrow: "GLIP Contracts",
+    title: "Contratos organizados",
+    text:
+      "Centralize minutas, pendências, revisões, aceite, anexos e histórico para reduzir ruído entre proposta e execução.",
+  },
+  {
+    eyebrow: "GLIP Studio",
+    title: "Projetos, arquivos e versões",
+    text:
+      "Conecte etapas, responsáveis, entregáveis, documentos técnicos, versões e aprovações sem substituir CAD, BIM ou SketchUp.",
+  },
+  {
+    eyebrow: "GLIP Works",
+    title: "Obras e fornecedores",
+    text:
+      "Acompanhe visitas, ocorrências, cronogramas, riscos, evidências e comunicação com fornecedores em um fluxo único.",
+  },
+  {
+    eyebrow: "GLIP Insights",
+    title: "Indicadores e margem",
+    text:
+      "Visualize prazo, custo, status, margem, pendências e decisões para conduzir cada projeto com mais previsibilidade.",
+  },
+];
+
+const flow = [
+  "Briefing",
+  "Proposta",
+  "Contrato",
+  "Projeto",
+  "Obra",
+  "Portal do cliente",
+  "Indicadores",
 ];
 
 const projectTypes = [
   "lojas de shopping",
-  "lojas de rua",
   "clínicas e consultórios",
   "escritórios corporativos",
   "interiores comerciais",
   "retrofit e reformas",
+  "obras em execução",
 ];
 
 export default function ArquitechLanding() {
   return (
-    <main className="arquitech-page">
+    <main className="arquitech-page" id="top">
       <section className="arquitech-hero">
-        <nav className="arquitech-nav" aria-label="Arquitech">
-          <Link className="arquitech-brand" to="/arquitech" aria-label="Arquitech">
-            <img src="/arquitech-assets/logo-symbol.svg" alt="" />
-            <span>Arquitech</span>
+        <nav className="arquitech-nav" aria-label="Navegação principal">
+          <Link className="arquitech-brand" to="/arquitech" aria-label="GLIP Intelligence Architecture">
+            <span className="arquitech-brand-mark" aria-hidden="true">
+              G
+            </span>
+            <span>
+              GLIP
+              <small>Intelligence Architecture</small>
+            </span>
           </Link>
+
           <div className="arquitech-nav-actions">
-            <Link to="/patroai">PatroAI</Link>
-            <Link to="/orkio">Orkio</Link>
-            <Link className="arquitech-nav-cta" to={authUrl}>Começar com a ARIA</Link>
+            <a href="#flow">Fluxo</a>
+            <a href="#modules">Módulos</a>
+            <a href="#aria">Aria</a>
+            <Link className="arquitech-nav-cta" to={authUrl}>
+              Falar com Aria
+            </Link>
           </div>
         </nav>
 
         <div className="arquitech-hero-grid">
           <div className="arquitech-hero-copy">
-            <p className="arquitech-kicker">Arquitetura assistida por IA</p>
-            <h1>Acima do BIM, a camada de decisão.</h1>
+            <p className="arquitech-kicker">GLIP Flow Intelligence</p>
+            <h1>Arquitetura fluida. Projetos organizados. Obras acompanhadas com inteligência.</h1>
             <p className="arquitech-lead">
-              A Arquitech é um módulo vertical do Orkio para apoiar escritórios de arquitetura
-              na organização de briefings, escopos, documentos, riscos, propostas, cronogramas
-              e decisões de projeto.
+              A GLIP Intelligence Architecture conecta briefing, cliente, proposta, contrato, projeto,
+              obra e indicadores em uma jornada digital clara, elegante e rastreável.
             </p>
+
             <div className="arquitech-hero-actions">
-              <Link className="arquitech-primary-button" to={authUrl}>Começar com a ARIA</Link>
-              <a className="arquitech-secondary-button" href="#como-funciona">Ver como funciona</a>
+              <Link className="arquitech-primary-button" to={authUrl}>
+                Iniciar briefing com Aria
+              </Link>
+              <a className="arquitech-secondary-button" href="#modules">
+                Ver módulos da plataforma
+              </a>
             </div>
+
             <p className="arquitech-fineprint">
-              ARIA é a superagente standalone da Arquitech. Ela responde sozinha no fluxo Arquitech,
-              sem orquestração com outros agentes.
+              Tecnologia discreta, experiência humana e método arquitetônico preservado. A inteligência
+              trabalha nos bastidores para dar clareza ao fluxo, não para substituir a responsabilidade
+              profissional.
             </p>
           </div>
 
-          <aside className="arquitech-aria-card" aria-label="Prévia da ARIA">
+          <aside className="arquitech-aria-card" id="aria" aria-label="Apresentação da Aria">
             <div className="arquitech-card-header">
-              <img src="/arquitech-assets/logo-symbol.svg" alt="" />
+              <div className="arquitech-avatar" aria-hidden="true">
+                A
+              </div>
               <div>
-                <strong>ARIA</strong>
-                <span>Superagente da Arquitech</span>
+                <strong>Aria</strong>
+                <span>Coordenadora inteligente do fluxo arquitetônico</span>
               </div>
             </div>
+
             <div className="arquitech-chat-preview">
               <p className="arquitech-user-bubble">
-                Tenho uma loja de 80m² em shopping e preciso organizar o projeto.
+                Tenho uma clínica em fase de briefing e preciso organizar proposta, contrato,
+                cronograma e documentos.
               </p>
-              <div className="arquitech-aria-bubble">
+              <p className="arquitech-aria-bubble">
                 <strong>Diagnóstico inicial</strong>
                 <span>
-                  Vamos estruturar briefing, documentos, riscos de aprovação, cronograma
-                  preliminar e próximos passos para uma rota segura de trabalho.
+                  Vamos estruturar o briefing, separar pendências, preparar a proposta, mapear riscos,
+                  organizar documentos e definir uma rota segura até contrato, projeto e obra.
                 </span>
-              </div>
+              </p>
+            </div>
+
+            <div className="arquitech-mini-metrics" aria-label="Capacidades principais">
+              <span>Briefing</span>
+              <span>Propostas</span>
+              <span>Contratos</span>
+              <span>Obras</span>
             </div>
           </aside>
         </div>
       </section>
 
-      <section id="como-funciona" className="arquitech-section">
+      <section className="arquitech-section" id="flow">
         <div className="arquitech-section-heading">
-          <p className="arquitech-kicker">Método</p>
-          <h2>Uma inteligência única para organizar projeto, obra e decisão.</h2>
+          <p className="arquitech-kicker">Jornada ponta a ponta</p>
+          <h2>Do primeiro contato ao acompanhamento da obra.</h2>
           <p>
-            A Arquitech não substitui as ferramentas existentes. Ela cria uma camada estratégica
-            de leitura, contexto e decisão acima de sistemas técnicos como BIM e CAD.
+            A GLIP Flow Intelligence transforma informações soltas em uma sequência compreensível:
+            cliente, briefing, proposta, contrato, projeto, execução e indicadores.
           </p>
         </div>
 
-        <div className="arquitech-steps">
-          <article>
-            <span>01</span>
-            <h3>Briefing</h3>
-            <p>ARIA organiza objetivo, fase, área, documentos, prazo, restrições e entrega esperada.</p>
-          </article>
-          <article>
-            <span>02</span>
-            <h3>Estrutura</h3>
-            <p>Transforma informações soltas em escopo, checklist, pendências, riscos e rota de trabalho.</p>
-          </article>
-          <article>
-            <span>03</span>
-            <h3>Decisão</h3>
-            <p>Apoia proposta, cronograma, comunicação com cliente e próximos passos operacionais.</p>
-          </article>
+        <div className="arquitech-flow">
+          {flow.map((item, index) => (
+            <article key={item} className="arquitech-flow-item">
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{item}</strong>
+            </article>
+          ))}
         </div>
       </section>
 
-      <section className="arquitech-section arquitech-systems">
+      <section className="arquitech-section arquitech-systems" id="modules">
         <div>
-          <p className="arquitech-kicker">Integrações futuras</p>
-          <h2>Preparada para conversar com o ecossistema da arquitetura.</h2>
+          <p className="arquitech-kicker">Módulos de negócio</p>
+          <h2>Uma plataforma para preservar contexto, decisão e execução.</h2>
           <p>
-            A plataforma foi pensada para evoluir com integrações a BIM, CAD, ERPs, CRMs,
-            planilhas, documentos técnicos, manuais de shopping, bases de fornecedores e
-            sistemas internos de escritórios e construtoras.
+            A Aria organiza o fluxo para que a equipe tenha clareza do próximo passo e o cliente
+            perceba acompanhamento real em cada etapa.
           </p>
         </div>
+
         <div className="arquitech-system-grid">
-          {["BIM", "CAD", "ERP", "CRM", "Planilhas", "Manuais", "Fornecedores", "Obra"].map((item) => (
+          {["CRM", "Propostas", "Contratos", "Studio", "Works", "Insights"].map((item) => (
             <span key={item}>{item}</span>
           ))}
         </div>
@@ -129,38 +194,53 @@ export default function ArquitechLanding() {
 
       <section className="arquitech-section">
         <div className="arquitech-section-heading">
-          <p className="arquitech-kicker">Casos de uso</p>
-          <h2>Da loja de shopping à obra complexa.</h2>
+          <p className="arquitech-kicker">Arquitetura operacional</p>
+          <h2>Propostas, contratos, projetos e obras no mesmo raciocínio.</h2>
+          <p>
+            Cada módulo foi pensado para reduzir retrabalho, preservar decisões e facilitar a
+            continuidade entre equipe, fornecedores e cliente.
+          </p>
         </div>
-        <div className="arquitech-tags">
-          {projectTypes.map((item) => <span key={item}>{item}</span>)}
-        </div>
-      </section>
 
-      <section className="arquitech-section arquitech-capabilities">
-        <div className="arquitech-section-heading">
-          <p className="arquitech-kicker">Capacidades</p>
-          <h2>O que a ARIA pode ajudar a estruturar.</h2>
-        </div>
         <div className="arquitech-capability-list">
-          {capabilities.map((item) => (
-            <article key={item}>
-              <h3>{item}</h3>
-              <p>Organização técnica, clareza de escopo e próximo passo prático para o escritório.</p>
+          {modules.map((item) => (
+            <article key={item.eyebrow}>
+              <span>{item.eyebrow}</span>
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
             </article>
           ))}
         </div>
       </section>
 
+      <section className="arquitech-section">
+        <div className="arquitech-section-heading">
+          <p className="arquitech-kicker">Casos de uso</p>
+          <h2>Da loja de shopping à obra em andamento.</h2>
+          <p>
+            A experiência foi desenhada para contextos em que projeto, prazo, orçamento, documentação
+            e aprovação precisam caminhar juntos.
+          </p>
+        </div>
+
+        <div className="arquitech-tags">
+          {projectTypes.map((item) => (
+            <span key={item}>{item}</span>
+          ))}
+        </div>
+      </section>
+
       <section className="arquitech-disclaimer">
-        <h2>Assistência inteligente, responsabilidade profissional preservada.</h2>
+        <p className="arquitech-kicker">Responsabilidade preservada</p>
+        <h2>Assistência inteligente, decisão profissional.</h2>
         <p>
-          A Arquitech e a ARIA apoiam o processo técnico, mas não substituem o profissional
-          habilitado, o responsável técnico, o BIM, o CAD, órgãos públicos, shopping centers,
-          bombeiros ou conselhos profissionais. Toda validação final deve ser feita pelo
-          profissional responsável e pelos órgãos competentes.
+          A GLIP e a Aria apoiam organização, clareza e gestão do fluxo, mas não substituem
+          arquitetos, engenheiros, responsáveis técnicos, validações legais, órgãos públicos,
+          shopping centers, bombeiros, conselhos profissionais ou revisão jurídica especializada.
         </p>
-        <Link className="arquitech-primary-button" to={authUrl}>Iniciar briefing com a ARIA</Link>
+        <Link className="arquitech-primary-button" to={authUrl}>
+          Começar com Aria
+        </Link>
       </section>
     </main>
   );
