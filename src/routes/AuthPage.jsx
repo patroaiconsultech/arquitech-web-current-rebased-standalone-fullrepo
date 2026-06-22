@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { apiFetch, createPublicCheckout } from "../ui/api.js";
+
+import { apiFetch } from "../ui/api.js";
 import {
   setTenant,
   savePendingOtpContext,
@@ -22,28 +23,144 @@ const palette = {
   faint: "rgba(248,250,252,0.46)",
   line: "rgba(255,255,255,0.12)",
   lineGold: "rgba(247,200,98,0.24)",
-  gold: "#f7c862",
   goldSoft: "#ffe29c",
-  goldDeep: "#8a5a12",
-  card: "rgba(7,10,18,0.74)",
-  cardStrong: "rgba(9,13,24,0.92)",
   input: "rgba(255,255,255,0.07)",
   inputBorder: "rgba(255,255,255,0.13)",
-  success: "#88f3a0",
 };
 
-const ARQUITECH_REGISTER_CODE = String(
-  import.meta.env.VITE_ARQUITECH_REGISTER_CODE || "ARQUITECH777"
-).trim() || "ARQUITECH777";
+const ARQUITECH_REGISTER_CODE =
+  String(import.meta.env.VITE_ARQUITECH_REGISTER_CODE || "ARQUITECH777").trim() ||
+  "ARQUITECH777";
 
 const ARQUITECH_APP_PATH =
   "/app?source=arquitech&agent=aria&product=arquitech&onboarding=1";
+
 const ARQUITECH_GATE_STORAGE_KEY = "arquitech_access_gate_passed";
+const AUTH_REQUEST_TIMEOUT_MS = 20000;
+const POST_LOGIN_REDIRECT_FALLBACK_MS = 900;
+const PRECHAT_KEY = "orkio_prechat_context";
+const PRECHAT_LEGACY_KEY = "orkio_prechat_context_v1";
+const PRECHAT_IMPORT_KEY = "orkio_prechat_import_pending_v1";
+const ADMIN_ALLOWED_EMAILS = new Set(["daniel@patroai.com", "daniel@patroai.com.br"]);
+
+/**
+ * AO-GLIP01-NO-ASAAS
+ *
+ * Objetivo:
+ * - Desabilitar checkout/billing/Asaas no AuthPage.
+ * - Não chamar /api/billing/public/checkout.
+ * - Criar conta e seguir direto para /api/auth/register + /api/auth/login.
+ * - Preservar contexto Arquitech/Aria: source=arquitech, product=arquitech, agent=aria.
+ * - Não tocar backend, runtime, orchestrator, billing backend ou banco.
+ */
 
 function markArquitechAccessPassed() {
   try {
     localStorage.setItem(ARQUITECH_GATE_STORAGE_KEY, "1");
   } catch {}
+}
+
+function normalizeIdentityEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isAuthorizedAdminEmail(value) {
+  return ADMIN_ALLOWED_EMAILS.has(normalizeIdentityEmail(value));
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeAccessCode(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function readPrechatContext() {
+  try {
+    const raw =
+      window.localStorage?.getItem(PRECHAT_KEY) ||
+      window.sessionStorage?.getItem(PRECHAT_KEY) ||
+      window.localStorage?.getItem(PRECHAT_LEGACY_KEY) ||
+      window.sessionStorage?.getItem(PRECHAT_LEGACY_KEY) ||
+      "";
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function stagePrechatImport(extra = {}) {
+  try {
+    const ctx = readPrechatContext();
+    if (!ctx) return;
+    window.localStorage?.setItem(
+      PRECHAT_IMPORT_KEY,
+      JSON.stringify({
+        ...ctx,
+        ...extra,
+        staged_at: new Date().toISOString(),
+      }),
+    );
+  } catch {}
+}
+
+function readAuthJourneyContext(search = "") {
+  try {
+    const params = new URLSearchParams(search || window.location.search || "");
+    const source = String(params.get("source") || "").trim();
+    const product = String(params.get("product") || "").trim();
+    const agent = String(params.get("agent") || "").trim();
+    const entry = String(params.get("entry") || "").trim();
+    const mode = String(params.get("mode") || "").trim();
+    const onboarding = params.get("onboarding") === "1";
+    const prechat = params.get("prechat") === "1";
+    const beta = params.get("beta") === "1";
+    const returnTo = String(params.get("returnTo") || params.get("next") || "").trim();
+
+    const normalizedSource = source.toLowerCase();
+    const normalizedProduct = product.toLowerCase();
+    const normalizedAgent = agent.toLowerCase();
+
+    const fromArquitech =
+      normalizedSource.includes("arquitech") ||
+      normalizedProduct.includes("arquitech") ||
+      normalizedAgent === "aria";
+
+    return {
+      source,
+      product,
+      agent,
+      entry,
+      mode,
+      onboarding,
+      prechat,
+      beta,
+      returnTo,
+      fromArquitech,
+      fromAvatar: entry === "avatar" || prechat,
+      fromDemo: normalizedSource.includes("demo"),
+      fromPatroai: normalizedSource.includes("patroai"),
+      fromOrkio: normalizedSource.includes("orkio"),
+    };
+  } catch {
+    return {
+      source: "",
+      product: "",
+      agent: "",
+      entry: "",
+      mode: "",
+      onboarding: false,
+      prechat: false,
+      beta: false,
+      returnTo: "",
+      fromArquitech: false,
+      fromAvatar: false,
+      fromDemo: false,
+      fromPatroai: false,
+      fromOrkio: false,
+    };
+  }
 }
 
 function resolvePostAuthPath({ journey, location, user }) {
@@ -60,6 +177,132 @@ function resolvePostAuthPath({ journey, location, user }) {
       ? "/admin"
       : redirect || DEFAULT_AFTER_LOGIN_PATH || "/app")
   );
+}
+
+function getAuthPresentation({ mode, otpMode, journey }) {
+  const safeMode = otpMode ? "otp" : mode || "login";
+
+  if (safeMode === "otp") {
+    return {
+      badge: "Acesso seguro",
+      title: "Confirme seu acesso",
+      subtitle:
+        "Digite o código enviado para seu e-mail. Essa etapa protege sua sessão e preserva a continuidade da jornada.",
+      panelTitle: "Validação com segurança",
+      panelBody:
+        "A Aria mantém o contexto preparado enquanto você conclui a verificação. Depois disso, seguimos para o ambiente certo.",
+      steps: ["Código por e-mail", "Sessão validada", "Continuidade preservada"],
+    };
+  }
+
+  if (safeMode === "forgot") {
+    return {
+      badge: "Recuperação",
+      title: "Recupere seu acesso",
+      subtitle: "Informe seu e-mail para receber instruções de recuperação de senha.",
+      panelTitle: "Sem perder o caminho",
+      panelBody:
+        "A recuperação foi desenhada para ser simples: você confirma o e-mail, redefine a senha e volta para a jornada original.",
+      steps: ["E-mail confirmado", "Senha redefinida", "Retorno seguro"],
+    };
+  }
+
+  if (safeMode === "reset") {
+    return {
+      badge: "Nova senha",
+      title: "Defina sua nova senha",
+      subtitle: "Crie uma nova senha para recuperar seu acesso à plataforma.",
+      panelTitle: "Acesso restaurado",
+      panelBody:
+        "Após atualizar a senha, você poderá entrar novamente e continuar sua jornada.",
+      steps: ["Nova senha", "Conta protegida", "Login liberado"],
+    };
+  }
+
+  if (safeMode === "register" && journey?.fromArquitech) {
+    return {
+      badge: "GLIP · Aria",
+      title: "Crie sua conta para conversar com a Aria",
+      subtitle:
+        "Acesse a GLIP Flow Intelligence com Aria como coordenadora inteligente do fluxo arquitetônico: briefing, propostas, contratos, projetos e obras.",
+      panelTitle: "A GLIP preserva o contexto",
+      panelBody:
+        "Origem, intenção e retorno pós-login são mantidos para abrir o console diretamente no modo GLIP + Aria.",
+      steps: ["Conta segura", "Aria conduz", "Diagnóstico inicial"],
+    };
+  }
+
+  if (safeMode === "register") {
+    return {
+      badge: "Novo acesso",
+      title: "Crie sua conta",
+      subtitle:
+        "Comece com um acesso gratuito para conhecer a jornada de inteligência operacional.",
+      panelTitle: "Comece com clareza",
+      panelBody:
+        "A criação da conta prepara seu espaço para conversas, diagnósticos e evolução operacional.",
+      steps: ["Conta criada", "Contexto inicial", "Ambiente liberado"],
+    };
+  }
+
+  return {
+    badge: "Bem-vindo de volta",
+    title: "Continue de onde parou",
+    subtitle:
+      "Entre com e-mail e senha. Se a governança exigir, o código OTP será solicitado na próxima etapa.",
+    panelTitle: "Memória e continuidade",
+    panelBody:
+      "O login recupera sua sessão, seu contexto e o próximo passo da jornada.",
+    steps: ["Sessão recuperada", "Contexto preservado", "Próximo passo retomado"],
+  };
+}
+
+function normalizeAuthErrorMessage(err, fallbackMessage) {
+  if (!err) return fallbackMessage;
+  if (err?.name === "AbortError" || err?.code === "AUTH_REQUEST_TIMEOUT") {
+    return "A solicitação demorou demais. Tente novamente em instantes.";
+  }
+
+  const raw = String(err?.message || fallbackMessage || "Falha no acesso.").trim();
+  if (!raw || raw === "[object Object]") return fallbackMessage || "Falha no acesso.";
+  if (/failed to fetch|network|load failed/i.test(raw)) {
+    return "Não consegui conectar ao servidor de autenticação. Tente novamente em instantes.";
+  }
+  if (/invalid session payload/i.test(raw)) {
+    return "O servidor respondeu, mas a sessão não veio completa. Tente novamente.";
+  }
+  if (/checkout|asaas|billing/i.test(raw)) {
+    return "O checkout está temporariamente desabilitado. Vamos seguir pelo acesso direto.";
+  }
+  return raw;
+}
+
+async function apiFetchWithTimeout(path, options = {}, timeoutMs = AUTH_REQUEST_TIMEOUT_MS) {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = controller
+    ? window.setTimeout(() => {
+        try {
+          controller.abort();
+        } catch {}
+      }, Math.max(1000, Number(timeoutMs || AUTH_REQUEST_TIMEOUT_MS)))
+    : null;
+
+  try {
+    return await apiFetch(path, {
+      ...options,
+      signal: controller?.signal,
+    });
+  } catch (err) {
+    if (controller?.signal?.aborted) {
+      const timeoutErr = new Error("Authentication request timed out.");
+      timeoutErr.name = "AbortError";
+      timeoutErr.code = "AUTH_REQUEST_TIMEOUT";
+      throw timeoutErr;
+    }
+    throw err;
+  } finally {
+    if (timer) window.clearTimeout(timer);
+  }
 }
 
 const shell = {
@@ -92,6 +335,36 @@ const card = {
   padding: 28,
   boxSizing: "border-box",
   backdropFilter: "blur(20px)",
+};
+
+const sidePanel = {
+  width: "100%",
+  borderRadius: 34,
+  border: `1px solid ${palette.line}`,
+  background:
+    "linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.025))",
+  color: palette.ink,
+  boxShadow: "0 30px 100px rgba(0,0,0,0.38)",
+  padding: 28,
+  boxSizing: "border-box",
+  backdropFilter: "blur(20px)",
+  overflow: "hidden",
+  position: "relative",
+};
+
+const sideChip = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "10px 14px",
+  borderRadius: 999,
+  border: `1px solid ${palette.lineGold}`,
+  background: "rgba(247,200,98,0.06)",
+  fontSize: 11,
+  fontWeight: 900,
+  letterSpacing: "0.18em",
+  textTransform: "uppercase",
+  color: palette.goldSoft,
 };
 
 const label = {
@@ -150,8 +423,6 @@ const linkBtn = {
   textAlign: "left",
 };
 
-const muted = { color: palette.muted, fontSize: 14, lineHeight: 1.62 };
-
 const adminChip = {
   border: `1px solid ${palette.lineGold}`,
   background: "rgba(247,200,98,0.08)",
@@ -175,43 +446,6 @@ const eyeBtn = {
   fontWeight: 850,
 };
 
-const sidePanel = {
-  width: "100%",
-  borderRadius: 34,
-  border: `1px solid ${palette.line}`,
-  background:
-    "linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.025))",
-  color: palette.ink,
-  boxShadow: "0 30px 100px rgba(0,0,0,0.38)",
-  padding: 28,
-  boxSizing: "border-box",
-  backdropFilter: "blur(20px)",
-  overflow: "hidden",
-  position: "relative",
-};
-
-const sideChip = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 10,
-  padding: "10px 14px",
-  borderRadius: 999,
-  border: `1px solid ${palette.lineGold}`,
-  background: "rgba(247,200,98,0.06)",
-  fontSize: 11,
-  fontWeight: 900,
-  letterSpacing: "0.18em",
-  textTransform: "uppercase",
-  color: palette.goldSoft,
-};
-
-const planPill = {
-  borderRadius: 22,
-  border: `1px solid ${palette.line}`,
-  background: "rgba(255,255,255,0.045)",
-  padding: "14px 16px",
-};
-
 const statusBox = {
   marginTop: 16,
   borderRadius: 20,
@@ -223,323 +457,32 @@ const statusBox = {
   lineHeight: 1.55,
 };
 
-const AUTH_REQUEST_TIMEOUT_MS = 20000;
-const POST_LOGIN_REDIRECT_FALLBACK_MS = 900;
-const PRECHAT_KEY = "orkio_prechat_context";
-const PRECHAT_LEGACY_KEY = "orkio_prechat_context_v1";
-const PRECHAT_IMPORT_KEY = "orkio_prechat_import_pending_v1";
-const PENDING_CHECKOUT_CTX_KEY = "orkio_pending_checkout_ctx";
-const ADMIN_ALLOWED_EMAILS = new Set(["daniel@patroai.com", "daniel@patroai.com.br"]);
-
-function normalizeIdentityEmail(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function isAuthorizedAdminEmail(value) {
-  return ADMIN_ALLOWED_EMAILS.has(normalizeIdentityEmail(value));
-}
-
-function normalizeEmail(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function normalizeAccessCode(value) {
-  return String(value || "").trim().toUpperCase();
-}
-
-function readPrechatContext() {
-  try {
-    const raw =
-      window.localStorage?.getItem(PRECHAT_KEY) ||
-      window.sessionStorage?.getItem(PRECHAT_KEY) ||
-      window.localStorage?.getItem(PRECHAT_LEGACY_KEY) ||
-      window.sessionStorage?.getItem(PRECHAT_LEGACY_KEY) ||
-      "";
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function stagePrechatImport(extra = {}) {
-  try {
-    const ctx = readPrechatContext();
-    if (!ctx) return;
-    window.localStorage?.setItem(
-      PRECHAT_IMPORT_KEY,
-      JSON.stringify({
-        ...ctx,
-        ...extra,
-        staged_at: new Date().toISOString(),
-      })
-    );
-  } catch {}
-}
-
-function saveCheckoutCtx(ctx) {
-  try {
-    localStorage.setItem(PENDING_CHECKOUT_CTX_KEY, JSON.stringify(ctx));
-  } catch {}
-}
-
-function readCheckoutCtx() {
-  try {
-    const raw = localStorage.getItem(PENDING_CHECKOUT_CTX_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function clearCheckoutCtx() {
-  try {
-    localStorage.removeItem(PENDING_CHECKOUT_CTX_KEY);
-  } catch {}
-}
-
-
-function readAuthJourneyContext(search = "") {
-  try {
-    const params = new URLSearchParams(search || window.location.search || "");
-    const source = String(params.get("source") || "").trim();
-    const product = String(params.get("product") || "").trim();
-    const agent = String(params.get("agent") || "").trim();
-    const entry = String(params.get("entry") || "").trim();
-    const mode = String(params.get("mode") || "").trim();
-    const onboarding = params.get("onboarding") === "1";
-    const prechat = params.get("prechat") === "1";
-    const beta = params.get("beta") === "1";
-    const returnTo = String(params.get("returnTo") || params.get("next") || "").trim();
-    const normalizedSource = source.toLowerCase();
-    const normalizedProduct = product.toLowerCase();
-    const normalizedAgent = agent.toLowerCase();
-    const fromArquitech =
-      normalizedSource.includes("arquitech") ||
-      normalizedProduct.includes("arquitech") ||
-      normalizedAgent === "aria";
-
-    return {
-      source,
-      product,
-      agent,
-      entry,
-      mode,
-      onboarding,
-      prechat,
-      beta,
-      returnTo,
-      fromArquitech,
-      fromAvatar: entry === "avatar" || prechat,
-      fromDemo: normalizedSource.includes("demo"),
-      fromPatroai: normalizedSource.includes("patroai"),
-      fromOrkio: normalizedSource.includes("orkio"),
-    };
-  } catch {
-    return {
-      source: "",
-      product: "",
-      agent: "",
-      entry: "",
-      mode: "",
-      onboarding: false,
-      prechat: false,
-      beta: false,
-      returnTo: "",
-      fromArquitech: false,
-      fromAvatar: false,
-      fromDemo: false,
-      fromPatroai: false,
-      fromOrkio: false,
-    };
-  }
-}
-
-function getAuthPresentation({ mode, otpMode, journey }) {
-  const safeMode = otpMode ? "otp" : mode || "login";
-  const fromArquitech = !!journey?.fromArquitech;
-  const fromAvatar = !!journey?.fromAvatar;
-  const fromDemo = !!journey?.fromDemo;
-  const fromPatroai = !!journey?.fromPatroai;
-  const fromOrkio = !!journey?.fromOrkio;
-  const onboarding = !!journey?.onboarding;
-
-  if (safeMode === "otp") {
-    return {
-      badge: "Acesso seguro",
-      title: "Confirme seu acesso",
-      subtitle:
-        "Digite o código enviado para seu e-mail. Essa etapa protege sua sessão e preserva a continuidade da jornada.",
-      panelTitle: "Validação com segurança",
-      panelBody:
-        "Orkio mantém o contexto preparado enquanto você conclui a verificação. Depois disso, seguimos para o ambiente certo.",
-      steps: ["Código por e-mail", "Sessão validada", "Continuidade preservada"],
-    };
-  }
-
-  if (safeMode === "forgot") {
-    return {
-      badge: "Recuperação",
-      title: "Recupere seu acesso",
-      subtitle: "Informe seu e-mail para receber instruções de recuperação de senha.",
-      panelTitle: "Sem perder o caminho",
-      panelBody:
-        "A recuperação foi desenhada para ser simples: você confirma o e-mail, redefine a senha e volta para a jornada original.",
-      steps: ["E-mail confirmado", "Senha redefinida", "Retorno seguro"],
-    };
-  }
-
-  if (safeMode === "reset") {
-    return {
-      badge: "Nova senha",
-      title: "Defina sua nova senha",
-      subtitle: "Crie uma nova senha para recuperar seu acesso à plataforma.",
-      panelTitle: "Acesso restaurado",
-      panelBody:
-        "Após atualizar a senha, você poderá entrar novamente e continuar no ambiente Orkio.",
-      steps: ["Nova senha", "Conta protegida", "Login liberado"],
-    };
-  }
-
-  if (safeMode === "register" && fromArquitech) {
-    return {
-      badge: "Arquitech · ARIA",
-      title: "Crie sua conta para conversar com a ARIA",
-      subtitle:
-        "Acesse a Arquitech com a ARIA como superagente única para diagnóstico, briefing, escopo, riscos, documentos e próximos passos.",
-      panelTitle: "Arquitech preserva o contexto",
-      panelBody:
-        "Origem, intenção e retorno pós-login são mantidos para abrir o console diretamente no modo Arquitech.",
-      steps: ["Conta segura", "ARIA única", "Diagnóstico inicial"],
-    };
-  }
-
-  if (safeMode === "register") {
-    if (fromAvatar) {
-      return {
-        badge: "Orkio iniciou o contexto",
-        title: "Preserve sua conversa com Orkio",
-        subtitle:
-          "Crie seu acesso para salvar o diagnóstico iniciado, manter memória contextual e continuar a jornada dentro da plataforma.",
-        panelTitle: "Sua conversa não precisa recomeçar",
-        panelBody:
-          "Orkio já sabe de onde você veio. Agora o cadastro cria uma sessão segura para transformar conversa em diagnóstico, plano e execução.",
-        steps: ["Contexto recebido", "Conta criada", "Diagnóstico continuado"],
-      };
-    }
-
-    if (fromDemo) {
-      return {
-        badge: "Demonstração Patroai",
-        title: "Prepare sua demonstração",
-        subtitle:
-          "Crie seu acesso para organizar o diagnóstico inicial e chegar à demonstração com mais clareza sobre sua operação.",
-        panelTitle: "Demonstração com contexto",
-        panelBody:
-          "Em vez de uma reunião genérica, a Patroai conduz uma entrada com contexto, intenção e próximos passos.",
-        steps: ["Perfil criado", "Objetivo registrado", "Demonstração preparada"],
-      };
-    }
-
-    if (fromPatroai || fromOrkio || onboarding) {
-      return {
-        badge: fromPatroai ? "Patroai Consultech" : "Orkio OS",
-        title: "Crie seu acesso inteligente",
-        subtitle:
-          "Entre na plataforma para iniciar diagnóstico, conversar com Orkio e transformar contexto em plano de evolução.",
-        panelTitle: "Uma entrada com continuidade",
-        panelBody:
-          "A jornada começa antes do formulário: origem, intenção e próximo passo acompanham o usuário até o app.",
-        steps: ["Cadastro simples", "Diagnóstico inicial", "Acesso ao app"],
-      };
-    }
-
-    return {
-      badge: "Novo acesso",
-      title: "Crie sua conta",
-      subtitle:
-        "Comece com um acesso gratuito para conhecer Orkio e explorar a jornada de inteligência empresarial.",
-      panelTitle: "Comece com clareza",
-      panelBody:
-        "A criação da conta prepara seu espaço para conversas, agentes, diagnósticos e evolução operacional.",
-      steps: ["Conta criada", "Contexto inicial", "Ambiente liberado"],
-    };
-  }
-
-  return {
-    badge: "Bem-vindo de volta",
-    title: "Continue de onde parou",
-    subtitle:
-      "Entre com e-mail e senha. Se a governança exigir, o código OTP será solicitado na próxima etapa.",
-    panelTitle: "Memória e continuidade",
-    panelBody:
-      "O login não é só uma porta de entrada. Ele recupera sua sessão, seu contexto e o próximo passo da jornada.",
-    steps: ["Sessão recuperada", "Contexto preservado", "Próximo passo retomado"],
-  };
-}
-
-function normalizeAuthErrorMessage(err, fallbackMessage) {
-  if (!err) return fallbackMessage;
-  if (err?.name === "AbortError" || err?.code === "AUTH_REQUEST_TIMEOUT") {
-    return "A solicitação demorou demais. Tente novamente em instantes.";
-  }
-  const raw = String(err?.message || fallbackMessage || "Falha no acesso.").trim();
-  if (!raw || raw === "[object Object]") return fallbackMessage || "Falha no acesso.";
-  if (/failed to fetch|network|load failed/i.test(raw)) return "Não consegui conectar ao servidor de autenticação. Tente novamente em instantes.";
-  if (/invalid session payload/i.test(raw)) return "O servidor respondeu, mas a sessão não veio completa. Tente novamente.";
-  return raw;
-}
-
-async function apiFetchWithTimeout(path, options = {}, timeoutMs = AUTH_REQUEST_TIMEOUT_MS) {
-  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const timer = controller
-    ? window.setTimeout(() => {
-        try {
-          controller.abort();
-        } catch {}
-      }, Math.max(1000, Number(timeoutMs || AUTH_REQUEST_TIMEOUT_MS)))
-    : null;
-
-  try {
-    return await apiFetch(path, {
-      ...options,
-      signal: controller?.signal,
-    });
-  } catch (err) {
-    if (controller?.signal?.aborted) {
-      const timeoutErr = new Error("Authentication request timed out.");
-      timeoutErr.name = "AbortError";
-      timeoutErr.code = "AUTH_REQUEST_TIMEOUT";
-      throw timeoutErr;
-    }
-    throw err;
-  } finally {
-    if (timer) window.clearTimeout(timer);
-  }
-}
-
-function PasswordField({ labelText, placeholder, value, onChange, show, onToggle, autoComplete }) {
+function PasswordField({
+  labelText,
+  placeholder,
+  value,
+  onChange,
+  show,
+  onToggle,
+  autoComplete,
+}) {
   return (
-    <div>
-      <label style={label}>{labelText}</label>
+    <label style={{ display: "block" }}>
+      <span style={label}>{labelText}</span>
       <div style={{ position: "relative" }}>
         <input
-          style={{ ...input, paddingRight: 64 }}
+          style={{ ...input, paddingRight: 92 }}
           type={show ? "text" : "password"}
           placeholder={placeholder}
           value={value}
           onChange={onChange}
-          autoComplete={autoComplete || "current-password"}
+          autoComplete={autoComplete}
         />
-        <button
-          type="button"
-          onClick={onToggle}
-          style={eyeBtn}
-          aria-label={show ? "Ocultar senha" : "Mostrar senha"}
-        >
+        <button type="button" onClick={onToggle} style={eyeBtn}>
           {show ? "Ocultar" : "Mostrar"}
         </button>
       </div>
-    </div>
+    </label>
   );
 }
 
@@ -558,7 +501,6 @@ export default function AuthPage() {
       const source = String(params.get("source") || "").toLowerCase();
       const onboarding = params.get("onboarding");
       const prechat = params.get("prechat");
-
       const product = String(params.get("product") || "").toLowerCase();
       const agent = String(params.get("agent") || "").toLowerCase();
 
@@ -582,7 +524,6 @@ export default function AuthPage() {
 
   const [mode, setMode] = useState(initialMode);
   const [otpMode, setOtpMode] = useState(false);
-
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -590,26 +531,24 @@ export default function AuthPage() {
   const [accessCode, setAccessCode] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState("free_trial");
-
   const [otpCode, setOtpCode] = useState("");
   const [pendingEmail, setPendingEmail] = useState("");
   const [resetToken, setResetToken] = useState("");
-
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showResetPasswordConfirm, setShowResetPasswordConfirm] = useState(false);
-
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+
   const loginWatchdogRef = useRef(null);
   const redirectedAfterLoginRef = useRef(false);
 
   const journey = useMemo(() => readAuthJourneyContext(location.search), [location.search]);
   const presentation = useMemo(
     () => getAuthPresentation({ mode, otpMode, journey }),
-    [mode, otpMode, journey]
+    [mode, otpMode, journey],
   );
 
   useEffect(() => {
@@ -617,7 +556,7 @@ export default function AuthPage() {
 
     setMode((prev) => (prev === "register" ? prev : "register"));
     setAccessCode((prev) => prev || ARQUITECH_REGISTER_CODE);
-    setSelectedPlan((prev) => prev || "free_trial");
+    setSelectedPlan("free_trial");
 
     try {
       const url = new URL(window.location.href);
@@ -627,15 +566,6 @@ export default function AuthPage() {
       }
     } catch {}
   }, [journey?.fromArquitech]);
-
-  const token = getToken();
-  const currentUser = getUser();
-  const showAdminShortcut =
-    !!token &&
-    !!currentUser &&
-    isApproved(currentUser) &&
-    isAdmin(currentUser) &&
-    isAuthorizedAdminEmail(currentUser?.email);
 
   useEffect(() => {
     try {
@@ -650,13 +580,6 @@ export default function AuthPage() {
       if (urlMode === "reset" && urlToken) {
         setResetToken(urlToken);
       }
-
-      const checkout = readCheckoutCtx();
-      if (checkout?.email) setEmail((prev) => prev || checkout.email);
-      if (checkout?.name) setName((prev) => prev || checkout.name);
-      if (checkout?.password) setPassword((prev) => prev || checkout.password);
-      if (checkout?.selectedPlan) setSelectedPlan(checkout.selectedPlan);
-      if (checkout?.acceptTerms) setAcceptTerms(true);
     } catch {}
   }, []);
 
@@ -679,8 +602,14 @@ export default function AuthPage() {
     };
   }, []);
 
-  const title = presentation.title;
-  const subtitle = presentation.subtitle;
+  const token = getToken();
+  const currentUser = getUser();
+  const showAdminShortcut =
+    !!token &&
+    !!currentUser &&
+    isApproved(currentUser) &&
+    isAdmin(currentUser) &&
+    isAuthorizedAdminEmail(currentUser?.email);
 
   function setAuthMode(nextMode) {
     setMode(nextMode);
@@ -690,10 +619,12 @@ export default function AuthPage() {
 
     const url = new URL(window.location.href);
     url.searchParams.set("mode", nextMode);
+
     if (nextMode !== "reset") {
       url.searchParams.delete("token");
       setResetToken("");
     }
+
     window.history.replaceState({}, "", `${url.pathname}${url.search}`);
   }
 
@@ -708,6 +639,7 @@ export default function AuthPage() {
         org: tenant,
         skipAuthRedirect: true,
       });
+
       return data?.terms_version || data?.version || getAcceptedTermsVersion() || null;
     } catch {
       return getAcceptedTermsVersion() || null;
@@ -716,19 +648,24 @@ export default function AuthPage() {
 
   async function finalizeSession(data, resolvedTenant) {
     const nextTenant = resolvedTenant || tenant || "public";
+
     setTenant(nextTenant);
 
     if (!data?.access_token || !data?.user) {
       throw new Error("Invalid session payload.");
     }
 
-    completeOtpLogin({ ...data, tenant: nextTenant });
-    clearCheckoutCtx();
+    completeOtpLogin({
+      ...data,
+      tenant: nextTenant,
+    });
 
     const pendingTerms = getPendingTermsAccepted();
+
     if (pendingTerms?.accepted) {
       try {
         const currentTermsVersion = await fetchCurrentTermsVersion();
+
         await apiFetchWithTimeout(
           "/api/me/accept-terms",
           {
@@ -739,11 +676,14 @@ export default function AuthPage() {
             body: {
               accepted: true,
               terms_version:
-                pendingTerms.terms_version || currentTermsVersion || getAcceptedTermsVersion(),
+                pendingTerms.terms_version ||
+                currentTermsVersion ||
+                getAcceptedTermsVersion(),
             },
           },
-          20000
+          20000,
         );
+
         clearPendingTermsAccepted();
       } catch (err) {
         console.warn("terms acceptance sync failed", err);
@@ -755,6 +695,7 @@ export default function AuthPage() {
 
     sessionStorage.removeItem("post_auth_redirect");
     redirectedAfterLoginRef.current = true;
+
     setStatus("Acesso validado. Redirecionando com segurança...");
 
     try {
@@ -772,8 +713,14 @@ export default function AuthPage() {
     nav(next, { replace: true });
   }
 
-  async function completeRegistration({ nameValue, emailValue, passwordValue, accessCodeValue = "" }) {
+  async function completeRegistration({
+    nameValue,
+    emailValue,
+    passwordValue,
+    accessCodeValue = "",
+  }) {
     const isArquitechFlow = !!journey?.fromArquitech;
+
     const registerPayload = {
       tenant,
       email: emailValue,
@@ -801,12 +748,14 @@ export default function AuthPage() {
     });
 
     setStatus("Conta criada. Verificando necessidade de código...");
+
     savePendingOtpContext({
       email: emailValue,
       tenant,
       name: nameValue,
       accessCode: accessCodeValue || (isArquitechFlow ? ARQUITECH_REGISTER_CODE : ""),
     });
+
     setPendingEmail(emailValue);
     setOtpMode(true);
 
@@ -820,13 +769,14 @@ export default function AuthPage() {
           tenant,
           email: emailValue,
           password: passwordValue,
-          access_code: accessCodeValue || (journey?.fromArquitech ? ARQUITECH_REGISTER_CODE : undefined),
+          access_code:
+            accessCodeValue || (journey?.fromArquitech ? ARQUITECH_REGISTER_CODE : undefined),
           source: journey?.fromArquitech ? "arquitech" : journey?.source || undefined,
           product: journey?.fromArquitech ? "arquitech" : journey?.product || undefined,
           agent: journey?.fromArquitech ? "aria" : journey?.agent || undefined,
         },
       },
-      AUTH_REQUEST_TIMEOUT_MS
+      AUTH_REQUEST_TIMEOUT_MS,
     );
 
     if (loginData?.pending_otp) {
@@ -836,6 +786,7 @@ export default function AuthPage() {
         name: nameValue,
         accessCode: accessCodeValue || (isArquitechFlow ? ARQUITECH_REGISTER_CODE : ""),
       });
+
       setPendingEmail(loginData.email || emailValue);
       setStatus(loginData.message || "Código enviado. Verifique seu e-mail para entrar.");
       return;
@@ -849,40 +800,6 @@ export default function AuthPage() {
     setStatus(loginData?.message || "Conta criada, mas a validação não foi concluída corretamente.");
   }
 
-  async function startPaidCheckout({ nameValue, emailValue }) {
-    saveCheckoutCtx({
-      tenant,
-      name: nameValue,
-      email: emailValue,
-      password,
-      selectedPlan,
-      acceptTerms,
-    });
-
-    const { data } = await createPublicCheckout({
-      org: tenant,
-      item_code: selectedPlan,
-      full_name: nameValue,
-      email: emailValue,
-    });
-
-    if (data?.already_active) {
-      await completeRegistration({
-        nameValue,
-        emailValue,
-        passwordValue: password,
-        accessCodeValue: "",
-      });
-      return;
-    }
-
-    if (!data?.checkout_url) {
-      throw new Error("Checkout link not available.");
-    }
-
-    window.location.href = data.checkout_url;
-  }
-
   async function doRegister() {
     if (busy) return;
 
@@ -890,6 +807,7 @@ export default function AuthPage() {
       setStatus("As senhas não conferem.");
       return;
     }
+
     if (!acceptTerms) {
       setStatus("Você precisa aceitar os termos para continuar.");
       return;
@@ -913,14 +831,8 @@ export default function AuthPage() {
     setStatus("Criando sua conta e preparando a continuidade da jornada...");
 
     try {
-      if (selectedPlan && selectedPlan !== "free_trial") {
-        await startPaidCheckout({
-          nameValue: nameNormalized,
-          emailValue: emailNormalized,
-        });
-        return;
-      }
-
+      // Asaas/billing/checkout está desabilitado neste patch.
+      // Mesmo que o usuário escolha Founder/Pro/Team, seguimos pelo acesso direto.
       await completeRegistration({
         nameValue: nameNormalized,
         emailValue: emailNormalized,
@@ -933,7 +845,7 @@ export default function AuthPage() {
         setEmail(emailNormalized);
         setStatus("Este e-mail já possui cadastro. Entre com sua senha para continuar.");
       } else {
-        setStatus(err?.message || "Não foi possível criar a conta.");
+        setStatus(normalizeAuthErrorMessage(err, "Não foi possível criar a conta."));
       }
     } finally {
       setBusy(false);
@@ -951,7 +863,7 @@ export default function AuthPage() {
     }
 
     setBusy(true);
-    setStatus("Validando acesso e recuperando contexto..."); try { console.info("AUTH_LOGIN_START", { email: emailNormalized, tenant }); } catch {}
+    setStatus("Validando acesso e recuperando contexto...");
 
     try {
       const { data } = await apiFetchWithTimeout(
@@ -964,36 +876,36 @@ export default function AuthPage() {
             tenant,
             email: emailNormalized,
             password,
-            access_code: journey?.fromArquitech ? (accessCode || ARQUITECH_REGISTER_CODE) : accessCode || undefined,
+            access_code: journey?.fromArquitech
+              ? accessCode || ARQUITECH_REGISTER_CODE
+              : accessCode || undefined,
             source: journey?.fromArquitech ? "arquitech" : journey?.source || undefined,
             product: journey?.fromArquitech ? "arquitech" : journey?.product || undefined,
             agent: journey?.fromArquitech ? "aria" : journey?.agent || undefined,
           },
         },
-        AUTH_REQUEST_TIMEOUT_MS
+        AUTH_REQUEST_TIMEOUT_MS,
       );
 
-      try { console.info("AUTH_LOGIN_RESPONSE", { pending_otp: !!data?.pending_otp, has_token: !!data?.access_token, has_user: !!data?.user }); } catch {}
-    if (data?.pending_otp) {
+      if (data?.pending_otp) {
         savePendingOtpContext({
           email: data.email || emailNormalized,
           tenant,
         });
+
         setPendingEmail(data.email || emailNormalized);
         setOtpMode(true);
-        setStatus(data?.message || "OTP sent. Check your email.");
+        setStatus(data?.message || "Código enviado. Verifique seu e-mail.");
         return;
       }
 
       if (data?.access_token && data?.user) {
-        try { console.info("AUTH_LOGIN_SUCCESS", { email: emailNormalized, tenant }); } catch {}
-      await finalizeSession(data, tenant);
+        await finalizeSession(data, tenant);
         return;
       }
 
-      setStatus(data?.message || "Unable to complete sign in.");
+      setStatus(data?.message || "Não foi possível concluir o login.");
     } catch (err) {
-      try { console.error("AUTH_LOGIN_ERROR", err); } catch {}
       setStatus(normalizeAuthErrorMessage(err, "Não foi possível entrar agora."));
     } finally {
       setBusy(false);
@@ -1002,14 +914,17 @@ export default function AuthPage() {
 
   async function doForgotPassword() {
     if (busy) return;
+
     const emailNormalized = normalizeEmail(email);
+
     if (!emailNormalized) {
-      setStatus("Please enter your email.");
+      setStatus("Informe seu e-mail.");
       return;
     }
 
     setBusy(true);
-    setStatus("Sending reset link...");
+    setStatus("Enviando instruções...");
+
     try {
       const { data } = await apiFetchWithTimeout(
         "/api/auth/forgot-password",
@@ -1022,11 +937,12 @@ export default function AuthPage() {
             email: emailNormalized,
           },
         },
-        20000
+        20000,
       );
-      setStatus(data?.message || "If the account exists, a reset link has been sent.");
+
+      setStatus(data?.message || "Se a conta existir, enviaremos um link de recuperação.");
     } catch (err) {
-      setStatus(normalizeAuthErrorMessage(err, "Unable to request password reset."));
+      setStatus(normalizeAuthErrorMessage(err, "Não foi possível solicitar recuperação."));
     } finally {
       setBusy(false);
     }
@@ -1036,20 +952,23 @@ export default function AuthPage() {
     if (busy) return;
 
     if (!resetToken) {
-      setStatus("Missing reset token.");
+      setStatus("Token de recuperação ausente.");
       return;
     }
+
     if (password !== passwordConfirm) {
       setStatus("As senhas não conferem.");
       return;
     }
+
     if (!password || !passwordConfirm) {
-      setStatus("Please fill both password fields.");
+      setStatus("Preencha os dois campos de senha.");
       return;
     }
 
     setBusy(true);
-    setStatus("Updating your password...");
+    setStatus("Atualizando sua senha...");
+
     try {
       const { data } = await apiFetchWithTimeout(
         "/api/auth/reset-password",
@@ -1064,14 +983,15 @@ export default function AuthPage() {
             password_confirm: passwordConfirm,
           },
         },
-        20000
+        20000,
       );
-      setStatus(data?.message || "Password updated. You can sign in now.");
+
+      setStatus(data?.message || "Senha atualizada. Você já pode entrar.");
       setPassword("");
       setPasswordConfirm("");
       setAuthMode("login");
     } catch (err) {
-      setStatus(normalizeAuthErrorMessage(err, "Unable to reset password."));
+      setStatus(normalizeAuthErrorMessage(err, "Não foi possível redefinir a senha."));
     } finally {
       setBusy(false);
     }
@@ -1086,12 +1006,12 @@ export default function AuthPage() {
     const code = String(otpCode || "").trim();
 
     if (!emailNormalized || !code) {
-      setStatus("Please enter the OTP sent by email.");
+      setStatus("Informe o código enviado por e-mail.");
       return;
     }
 
     setBusy(true);
-    setStatus("Verifying code...");
+    setStatus("Validando código...");
 
     try {
       const { data } = await apiFetchWithTimeout(
@@ -1106,17 +1026,17 @@ export default function AuthPage() {
             code,
           },
         },
-        AUTH_REQUEST_TIMEOUT_MS
+        AUTH_REQUEST_TIMEOUT_MS,
       );
 
       if (!data?.access_token || !data?.user) {
-        setStatus(data?.message || "Invalid code or session not finalized.");
+        setStatus(data?.message || "Código inválido ou sessão não finalizada.");
         return;
       }
 
       await finalizeSession(data, resolvedTenant);
     } catch (err) {
-      setStatus(normalizeAuthErrorMessage(err, "OTP validation failed."));
+      setStatus(normalizeAuthErrorMessage(err, "Falha na validação do código."));
     } finally {
       setBusy(false);
     }
@@ -1133,7 +1053,7 @@ export default function AuthPage() {
     };
 
     return (
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 22 }}>
         <button
           type="button"
           onClick={() => setAuthMode("login")}
@@ -1146,6 +1066,7 @@ export default function AuthPage() {
         >
           Entrar
         </button>
+
         <button
           type="button"
           onClick={() => setAuthMode("register")}
@@ -1171,8 +1092,8 @@ export default function AuthPage() {
         }}
         style={{ display: "grid", gap: 14, marginTop: 22 }}
       >
-        <div>
-          <label style={label}>Código OTP</label>
+        <label>
+          <span style={label}>Código OTP</span>
           <input
             style={input}
             value={otpCode}
@@ -1181,10 +1102,12 @@ export default function AuthPage() {
             inputMode="numeric"
             autoComplete="one-time-code"
           />
-        </div>
-        <button type="submit" disabled={busy} style={{ ...btn, opacity: busy ? 0.65 : 1 }}>
+        </label>
+
+        <button type="submit" disabled={busy} style={btn}>
           {busy ? "Validando..." : "Validar e continuar"}
         </button>
+
         <button
           type="button"
           onClick={() => {
@@ -1209,17 +1132,16 @@ export default function AuthPage() {
         }}
         style={{ display: "grid", gap: 14, marginTop: 22 }}
       >
-        <div>
-          <label style={label}>E-mail</label>
+        <label>
+          <span style={label}>E-mail</span>
           <input
             style={input}
-            type="email"
-            autoComplete="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="voce@empresa.com"
+            autoComplete="email"
           />
-        </div>
+        </label>
 
         <PasswordField
           labelText="Senha"
@@ -1231,21 +1153,21 @@ export default function AuthPage() {
           autoComplete="current-password"
         />
 
-        <button type="submit" disabled={busy} style={{ ...btn, opacity: busy ? 0.65 : 1 }}>
+        <button type="submit" disabled={busy} style={btn}>
           {busy ? "Entrando..." : "Entrar e continuar"}
         </button>
 
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
-          <button type="button" style={linkBtn} onClick={() => setAuthMode("forgot")}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <button type="button" onClick={() => setAuthMode("forgot")} style={linkBtn}>
             Esqueci minha senha
           </button>
-          <button type="button" style={linkBtn} onClick={() => setAuthMode("register")}>
+          <button type="button" onClick={() => setAuthMode("register")} style={linkBtn}>
             Criar conta
           </button>
         </div>
 
         {showAdminShortcut ? (
-          <button type="button" style={adminChip} onClick={goToAdminDirect}>
+          <button type="button" onClick={goToAdminDirect} style={secondaryBtn}>
             Ir para Admin
           </button>
         ) : null}
@@ -1262,8 +1184,8 @@ export default function AuthPage() {
         }}
         style={{ display: "grid", gap: 14, marginTop: 22 }}
       >
-        <div>
-          <label style={label}>Nome completo</label>
+        <label>
+          <span style={label}>Nome completo</span>
           <input
             style={input}
             value={name}
@@ -1271,19 +1193,18 @@ export default function AuthPage() {
             placeholder="Seu nome"
             autoComplete="name"
           />
-        </div>
+        </label>
 
-        <div>
-          <label style={label}>E-mail</label>
+        <label>
+          <span style={label}>E-mail</span>
           <input
             style={input}
-            type="email"
-            autoComplete="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="voce@empresa.com"
+            autoComplete="email"
           />
-        </div>
+        </label>
 
         <PasswordField
           labelText="Senha"
@@ -1297,7 +1218,7 @@ export default function AuthPage() {
 
         <PasswordField
           labelText="Confirmar senha"
-          placeholder="Repita a senha"
+          placeholder="Repita sua senha"
           value={passwordConfirm}
           show={showPasswordConfirm}
           onToggle={() => setShowPasswordConfirm((prev) => !prev)}
@@ -1305,8 +1226,8 @@ export default function AuthPage() {
           autoComplete="new-password"
         />
 
-        <div>
-          <label style={label}>Código promocional, convite ou acesso interno</label>
+        <label>
+          <span style={label}>Código promocional, convite ou acesso interno</span>
           <input
             style={input}
             value={accessCode}
@@ -1314,10 +1235,10 @@ export default function AuthPage() {
             placeholder="Opcional"
             autoComplete="off"
           />
-        </div>
+        </label>
 
-        <div>
-          <label style={label}>Tipo de acesso</label>
+        <label>
+          <span style={label}>Tipo de acesso</span>
           <select
             style={input}
             value={selectedPlan}
@@ -1328,23 +1249,40 @@ export default function AuthPage() {
             <option value="pro_access">Pro Access</option>
             <option value="team_access">Team Access</option>
           </select>
-        </div>
+        </label>
 
-        <label style={{ ...muted, display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", color: palette.muted, fontSize: 13, lineHeight: 1.55 }}>
           <input
             type="checkbox"
             checked={acceptTerms}
             onChange={(event) => setAcceptTerms(event.target.checked)}
             style={{ marginTop: 3 }}
           />
-          <span>Aceito os termos de uso, política de privacidade e tratamento seguro dos dados pela PatroAI.</span>
+          <span>
+            Aceito os termos de uso, política de privacidade e tratamento seguro dos dados pela GLIP/PatroAI.
+          </span>
         </label>
 
-        <button type="submit" disabled={busy} style={{ ...btn, opacity: busy ? 0.65 : 1 }}>
+        <div
+          style={{
+            border: `1px solid ${palette.lineGold}`,
+            background: "rgba(247,200,98,0.07)",
+            color: palette.goldSoft,
+            borderRadius: 16,
+            padding: "10px 12px",
+            fontSize: 12,
+            lineHeight: 1.45,
+          }}
+        >
+          Checkout e cobrança estão temporariamente desabilitados. O acesso seguirá direto para
+          cadastro, login e ambiente Aria.
+        </div>
+
+        <button type="submit" disabled={busy} style={btn}>
           {busy ? "Preparando acesso..." : "Criar conta e continuar"}
         </button>
 
-        <button type="button" style={linkBtn} onClick={() => setAuthMode("login")}>
+        <button type="button" onClick={() => setAuthMode("login")} style={linkBtn}>
           Já tenho conta. Entrar.
         </button>
       </form>
@@ -1360,23 +1298,22 @@ export default function AuthPage() {
         }}
         style={{ display: "grid", gap: 14, marginTop: 22 }}
       >
-        <div>
-          <label style={label}>E-mail</label>
+        <label>
+          <span style={label}>E-mail</span>
           <input
             style={input}
-            type="email"
-            autoComplete="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="voce@empresa.com"
+            autoComplete="email"
           />
-        </div>
+        </label>
 
-        <button type="submit" disabled={busy} style={{ ...btn, opacity: busy ? 0.65 : 1 }}>
+        <button type="submit" disabled={busy} style={btn}>
           {busy ? "Enviando..." : "Enviar instruções"}
         </button>
 
-        <button type="button" style={secondaryBtn} onClick={() => setAuthMode("login")}>
+        <button type="button" onClick={() => setAuthMode("login")} style={linkBtn}>
           Voltar para login
         </button>
       </form>
@@ -1394,7 +1331,7 @@ export default function AuthPage() {
       >
         <PasswordField
           labelText="Nova senha"
-          placeholder="Nova senha"
+          placeholder="Crie uma nova senha"
           value={password}
           show={showResetPassword}
           onToggle={() => setShowResetPassword((prev) => !prev)}
@@ -1412,11 +1349,11 @@ export default function AuthPage() {
           autoComplete="new-password"
         />
 
-        <button type="submit" disabled={busy} style={{ ...btn, opacity: busy ? 0.65 : 1 }}>
+        <button type="submit" disabled={busy} style={btn}>
           {busy ? "Atualizando..." : "Atualizar senha"}
         </button>
 
-        <button type="button" style={secondaryBtn} onClick={() => setAuthMode("login")}>
+        <button type="button" onClick={() => setAuthMode("login")} style={linkBtn}>
           Voltar para login
         </button>
       </form>
@@ -1431,171 +1368,82 @@ export default function AuthPage() {
     return renderLoginForm();
   }
 
+  const originLabel = journey.fromArquitech
+    ? "landing GLIP / Aria"
+    : journey.fromAvatar
+      ? "avatar / pré-chat"
+      : journey.fromDemo
+        ? "demonstração"
+        : journey.fromPatroai
+          ? "landing PatroAI"
+          : journey.fromOrkio
+            ? "landing Orkio"
+            : "";
+
   return (
-    <div style={shell}>
-      <style>
-        {`
-          @media (max-width: 920px) {
-            .auth-premium-grid {
-              grid-template-columns: 1fr !important;
-            }
-            .auth-premium-side {
-              order: 2;
-            }
-            .auth-premium-card {
-              order: 1;
-            }
-          }
+    <main style={shell}>
+      <section style={pageGrid}>
+        <aside style={sidePanel}>
+          <span style={sideChip}>{presentation.badge}</span>
 
-          input::placeholder {
-            color: rgba(248,250,252,0.36);
-          }
-
-          select option {
-            color: #0f172a;
-            background: #ffffff;
-          }
-        `}
-      </style>
-
-      <div
-        aria-hidden="true"
-        style={{
-          position: "fixed",
-          inset: 0,
-          pointerEvents: "none",
-          opacity: 0.08,
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,.7) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.7) 1px, transparent 1px)",
-          backgroundSize: "80px 80px",
-        }}
-      />
-
-      <div className="auth-premium-grid" style={pageGrid}>
-        <div className="auth-premium-side" style={sidePanel}>
-          <div
-            aria-hidden="true"
+          <h1
             style={{
-              position: "absolute",
-              right: -120,
-              top: -120,
-              width: 300,
-              height: 300,
-              borderRadius: "50%",
-              background:
-                "radial-gradient(circle at center, rgba(247,200,98,0.24), transparent 66%)",
-              filter: "blur(8px)",
+              margin: "34px 0 14px",
+              fontSize: "clamp(34px, 5vw, 58px)",
+              letterSpacing: "-0.06em",
+              lineHeight: 0.95,
             }}
-          />
+          >
+            GLIP + Aria
+          </h1>
 
-          <div style={{ position: "relative" }}>
-            <div style={sideChip}>
-              <span
-                aria-hidden="true"
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 999,
-                  background: "radial-gradient(circle at center, rgba(247,200,98,1), rgba(247,200,98,0.55))",
-                  boxShadow: "0 0 12px rgba(247,200,98,0.35)",
-                  flex: "0 0 auto",
-                }}
-              />
-              {presentation.badge}
-            </div>
+          <h2 style={{ margin: "0 0 12px", fontSize: 22 }}>{presentation.panelTitle}</h2>
 
-            <div
-              style={{
-                marginTop: 26,
-                display: "grid",
-                gap: 10,
-                alignItems: "start",
-              }}
-            >
+          <p style={{ color: palette.muted, lineHeight: 1.65, fontSize: 15 }}>
+            {presentation.panelBody}
+          </p>
+
+          <div style={{ display: "grid", gap: 10, marginTop: 26 }}>
+            {presentation.steps.map((step, index) => (
               <div
+                key={`${step}-${index}`}
                 style={{
-                  fontSize: 12,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.18em",
-                  color: palette.faint,
-                  fontWeight: 950,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  color: "rgba(248,250,252,0.76)",
+                  border: `1px solid ${palette.line}`,
+                  borderRadius: 16,
+                  padding: "12px 14px",
+                  background: "rgba(255,255,255,0.04)",
                 }}
               >
-                PatroAI + Orkio
+                <strong style={{ color: palette.goldSoft }}>{index + 1}</strong>
+                <span>{step}</span>
               </div>
-              <div style={{ fontSize: 30, lineHeight: 1.04, fontWeight: 950, maxWidth: 420 }}>
-                {presentation.panelTitle}
-              </div>
-            </div>
-
-            <p style={{ marginTop: 18, color: palette.muted, lineHeight: 1.72 }}>
-              {presentation.panelBody}
-            </p>
-
-            <div style={{ display: "grid", gap: 12, marginTop: 24 }}>
-              {presentation.steps.map((step, index) => (
-                <div key={step} style={planPill}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 999,
-                        display: "grid",
-                        placeItems: "center",
-                        border: `1px solid ${palette.lineGold}`,
-                        background: "rgba(247,200,98,0.08)",
-                        color: palette.goldSoft,
-                        fontSize: 12,
-                        fontWeight: 950,
-                      }}
-                    >
-                      {index + 1}
-                    </span>
-                    <strong>{step}</strong>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div
-              style={{
-                marginTop: 24,
-                borderRadius: 24,
-                border: `1px solid ${palette.line}`,
-                background: "rgba(0,0,0,0.20)",
-                padding: 16,
-              }}
-            >
-              <div style={{ color: palette.goldSoft, fontSize: 12, fontWeight: 950, letterSpacing: "0.12em", textTransform: "uppercase" }}>
-                Continuidade de contexto
-              </div>
-              <p style={{ margin: "8px 0 0", color: palette.muted, lineHeight: 1.6, fontSize: 13 }}>
-                Origem, intenção, retorno pós-login e diagnóstico iniciado são preservados sem criar rotas novas.
-              </p>
-            </div>
+            ))}
           </div>
-        </div>
 
-        <div className="auth-premium-card" style={card}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-            <div>
-              <div
-                style={{
-                  fontSize: 12,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.18em",
-                  color: palette.goldSoft,
-                  fontWeight: 950,
-                }}
-              >
-                Acesso Patroai
-              </div>
-              <h1 style={{ margin: "8px 0 0", fontSize: 38, lineHeight: 1, color: palette.ink }}>
-                {title}
-              </h1>
-            </div>
+          <div
+            style={{
+              marginTop: 26,
+              borderRadius: 24,
+              border: `1px solid ${palette.line}`,
+              background: "rgba(255,255,255,0.045)",
+              padding: 18,
+            }}
+          >
+            <strong style={{ display: "block", marginBottom: 8 }}>Continuidade de contexto</strong>
+            <span style={{ color: palette.muted, lineHeight: 1.55, fontSize: 13 }}>
+              Origem, intenção, retorno pós-login e diagnóstico iniciado são preservados sem
+              criar rotas novas.
+            </span>
+          </div>
+        </aside>
 
+        <section style={card}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+            <span style={sideChip}>{journey.fromArquitech ? "Acesso GLIP" : "Acesso"}</span>
             {showAdminShortcut ? (
               <button type="button" style={adminChip} onClick={goToAdminDirect}>
                 Admin
@@ -1603,32 +1451,25 @@ export default function AuthPage() {
             ) : null}
           </div>
 
-          <p style={{ ...muted, marginTop: 14 }}>{subtitle}</p>
+          <h1
+            style={{
+              margin: "24px 0 10px",
+              fontSize: "clamp(28px, 4vw, 42px)",
+              letterSpacing: "-0.05em",
+              lineHeight: 1,
+            }}
+          >
+            {presentation.title}
+          </h1>
 
-          {journey?.fromAvatar || journey?.fromDemo || journey?.fromPatroai || journey?.fromOrkio ? (
-            <div
-              style={{
-                marginTop: 16,
-                borderRadius: 22,
-                border: `1px solid ${palette.lineGold}`,
-                background: "rgba(247,200,98,0.07)",
-                padding: 14,
-                color: "rgba(248,250,252,0.76)",
-                fontSize: 13,
-                lineHeight: 1.58,
-              }}
-            >
-              <strong style={{ color: palette.goldSoft }}>Origem reconhecida:</strong>{" "}
-              {journey.fromArquitech
-                ? "landing Arquitech / ARIA"
-                : journey.fromAvatar
-                ? "avatar Orkio / pré-chat"
-                : journey.fromDemo
-                ? "demonstração Patroai"
-                : journey.fromPatroai
-                ? "landing Patroai"
-                : "landing Orkio OS"}
-              . Vamos manter essa intenção durante o acesso.
+          <p style={{ color: palette.muted, lineHeight: 1.62, fontSize: 15 }}>
+            {presentation.subtitle}
+          </p>
+
+          {originLabel ? (
+            <div style={statusBox}>
+              Origem reconhecida: <strong>{originLabel}</strong>. Vamos manter essa intenção
+              durante o acesso.
             </div>
           ) : null}
 
@@ -1637,15 +1478,18 @@ export default function AuthPage() {
 
           {status ? <div style={statusBox}>{status}</div> : null}
 
-          <div style={{ marginTop: 18, display: "flex", gap: 12, flexWrap: "wrap", color: palette.faint, fontSize: 12 }}>
-            <span>Privacidade por design</span>
-            <span>•</span>
-            <span>OTP quando necessário</span>
-            <span>•</span>
-            <span>Retorno seguro para /app</span>
-          </div>
-        </div>
-      </div>
-    </div>
+          <p
+            style={{
+              marginTop: 22,
+              color: palette.faint,
+              fontSize: 12,
+              lineHeight: 1.55,
+            }}
+          >
+            Privacidade por design • OTP quando necessário • Retorno seguro para /app
+          </p>
+        </section>
+      </section>
+    </main>
   );
 }
