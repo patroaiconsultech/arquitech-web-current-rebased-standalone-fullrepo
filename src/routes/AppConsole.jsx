@@ -9,6 +9,7 @@ import OnboardingModal from "../components/OnboardingModal.jsx";
 import { startSessionHeartbeat } from "../lib/sessionHeartbeat.js";
 import EmptyStatePremium from "../components/EmptyStatePremium.jsx";
 import ExecutionTimeline from "../components/ExecutionTimeline.jsx";
+import useGlipAriaMode, { readGlipAriaConsoleMode, findGlipAriaAgentRecord, coerceGlipAriaAgentName, normalizeGlipAriaAssistantContent } from "../hooks/useGlipAriaMode.js";
 
 function normalizeUserFacingRuntimeMessage(value, context = "") {
   const raw = String(value || "").trim();
@@ -1164,34 +1165,15 @@ function sanitizeOnboardingForm(data) {
 }
 
 function readArquitechConsoleMode() {
-  if (typeof window === "undefined") return false;
-  try {
-    const params = new URLSearchParams(window.location.search || "");
-    const source = String(params.get("source") || "").trim().toLowerCase();
-    const product = String(params.get("product") || "").trim().toLowerCase();
-    const agent = String(params.get("agent") || "").trim().toLowerCase();
-    return source === "arquitech" || product === "arquitech" || agent === "aria";
-  } catch {
-    return false;
-  }
+  return readGlipAriaConsoleMode();
 }
 
 function isAriaAgentRecord(agent) {
-  const name = String(agent?.name || "").trim().toLowerCase();
-  const description = String(agent?.description || "").trim().toLowerCase();
-  return (
-    name === "aria" ||
-    name.includes("aria") ||
-    name.includes("arquitech") ||
-    description.includes("arquitech")
-  );
+  return findGlipAriaAgentRecord([agent]) === agent;
 }
 
 function findAriaAgentRecord(list) {
-  const rows = Array.isArray(list) ? list : [];
-  return rows.find((agent) => String(agent?.name || "").trim().toLowerCase() === "aria")
-    || rows.find((agent) => isAriaAgentRecord(agent))
-    || null;
+  return findGlipAriaAgentRecord(list);
 }
 
 function buildArquitechFallbackAuthUrl() {
@@ -1208,46 +1190,13 @@ export default function AppConsole() {
   const glipAssistantName = isArquitechMode ? "Aria" : "Orkio";
 
   function coerceConsoleAgentName(name = "Agent") {
-    if (!isArquitechMode) return name || "Agent";
-    const raw = String(name || "").trim();
-    const slug = raw
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-    if (!raw) return "Aria";
-    if (
-      slug === "orkio" ||
-      slug === "agent" ||
-      slug === "agente" ||
-      slug === "assistant" ||
-      slug === "model" ||
-      slug === "aria" ||
-      slug.includes("orkio") ||
-      slug.includes("patroai") ||
-      slug.includes("team") ||
-      slug.includes("chris") ||
-      slug.includes("orion")
-    ) {
-      return "Aria";
-    }
-    return raw;
+    return isArquitechMode ? coerceGlipAriaAgentName(name) : name || "Agent";
   }
 
   function normalizeGlipAssistantContent(value = "") {
     const original = String(value || "");
     if (!isArquitechMode || !original) return original;
-
-    return original
-      .replace(/Sou\s+Orkio,\s*o\s+copiloto\s+inteligente\s+da\s+PatroAI!?/gi, "Sou Aria, a inteligência operacional da GLIP.")
-      .replace(/Sou\s+Orkio/gi, "Sou Aria")
-      .replace(/\bOrkio\b/g, "Aria")
-      .replace(/\bORKIO\b/g, "ARIA")
-      .replace(/\bPatroAI\b/g, "GLIP")
-      .replace(/\bPatroai\b/g, "GLIP")
-      .replace(/\bPatroaí\b/g, "GLIP")
-      .replace(/\bTeam\b/g, "Aria")
-      .replace(/\bChris\b/g, "Aria")
-      .replace(/\bOrion\b/g, "Aria");
+    return normalizeGlipAriaAssistantContent(original);
   }
 
 
@@ -1336,6 +1285,7 @@ const [onboardingForm, setOnboardingForm] = useState(() => sanitizeOnboardingFor
   const [threadId, setThreadId] = useState("");
   const [messages, setMessages] = useState([]);
   const [agents, setAgents] = useState([]);
+  const glipAriaMode = useGlipAriaMode({ agents });
   const agentsByNameRef = useRef(new Map());
   const activeThreadIdRef = useRef("");
   const activeThreadEpochRef = useRef(0);
@@ -2606,18 +2556,7 @@ function formatAgentOptionLabel(agent) {
 
   function buildDestinationContract(rawMessage = "", hostAgentId = null) {
     if (isArquitechMode) {
-      const aria = findAriaAgentRecord(agents);
-      const ariaId = aria?.id || null;
-      return {
-        dest_mode: "single",
-        agent_id: ariaId || "aria",
-        agent_ids: [],
-        target_agent_slug: "aria",
-        visible_agent: "Aria",
-        requested_agent_names: ["Aria"],
-        source: "arquitech",
-        product: "arquitech",
-      };
+      return glipAriaMode.buildDestinationContract();
     }
 
     const mode = ["team", "single", "multi"].includes(String(destMode || "").toLowerCase())
@@ -2980,6 +2919,9 @@ async function sendMessage(presetMsg = null, opts = {}) {
             requested_agent_names: destinationContract.requested_agent_names,
             source: destinationContract.source,
             product: destinationContract.product,
+            context_mode: destinationContract.context_mode,
+            runtime_persona: destinationContract.runtime_persona,
+            persona_lock: destinationContract.persona_lock,
             signal: directCtl.signal,
           });
         } catch (err) {
@@ -3103,6 +3045,9 @@ async function sendMessage(presetMsg = null, opts = {}) {
             requested_agent_names: destinationContract.requested_agent_names,
             source: destinationContract.source,
             product: destinationContract.product,
+            context_mode: destinationContract.context_mode,
+            runtime_persona: destinationContract.runtime_persona,
+            persona_lock: destinationContract.persona_lock,
             signal: ctl.signal,
           }), CHAT_STREAM_CONNECT_TIMEOUT_MS, "CHAT_STREAM_CONNECT_TIMEOUT");
           streamMeta = await withTimeout(consumeChatStream(streamResp, {
