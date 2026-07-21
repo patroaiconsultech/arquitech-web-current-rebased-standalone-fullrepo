@@ -1867,7 +1867,7 @@ useEffect(() => {
     setUser(u);
 
     if (!t) {
-      nav("/auth");
+      nav(isArquitechMode ? buildArquitechFallbackAuthUrl() : "/auth");
       return;
     }
 
@@ -5940,7 +5940,7 @@ async function stopRealtime(reason = 'client_stop') {
 
   return (
     <>
-    <PWAInstallPrompt />
+    <PWAInstallPrompt productLabel={isArquitechMode ? "GLIP" : "Orkio"} />
     {bootstrapFailOpen && (
       <div style={{ position: "fixed", top: "12px", left: "50%", transform: "translateX(-50%)", zIndex: 120, padding: "10px 14px", borderRadius: "12px", border: "1px solid rgba(251,191,36,0.35)", background: "rgba(120,53,15,0.92)", color: "#fde68a", fontSize: "12px", fontWeight: 700, boxShadow: "0 12px 28px rgba(0,0,0,0.28)" }}>
         Console liberado em modo fail-open. O bootstrap inicial demorou mais que o esperado.

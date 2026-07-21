@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import OrkioSphereMark from "../ui/OrkioSphereMark.jsx";
 
-export default function PWAInstallPrompt() {
+export default function PWAInstallPrompt({ productLabel = "Orkio" }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [dismissed, setDismissed] = useState(false);
+
+  const storageKey = productLabel === "GLIP" ? "glip_pwa_dismissed" : "orkio_pwa_dismissed";
 
   const isIOS = useMemo(() => {
     if (typeof navigator === "undefined") return false;
@@ -12,7 +14,7 @@ export default function PWAInstallPrompt() {
 
   useEffect(() => {
     if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return;
-    if (localStorage.getItem("orkio_pwa_dismissed") === "1") {
+    if (localStorage.getItem(storageKey) === "1") {
       setDismissed(true);
       return;
     }
@@ -22,7 +24,7 @@ export default function PWAInstallPrompt() {
     };
     window.addEventListener("beforeinstallprompt", onPrompt);
     return () => window.removeEventListener("beforeinstallprompt", onPrompt);
-  }, []);
+  }, [storageKey]);
 
   if (dismissed) return null;
   if (!deferredPrompt && !isIOS) return null;
@@ -35,7 +37,7 @@ export default function PWAInstallPrompt() {
   };
 
   const dismiss = () => {
-    localStorage.setItem("orkio_pwa_dismissed", "1");
+    localStorage.setItem(storageKey, "1");
     setDismissed(true);
   };
 
@@ -66,11 +68,11 @@ export default function PWAInstallPrompt() {
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <OrkioSphereMark size={34} badge={false} />
         <div style={{ fontSize: 12 }}>
-          <div style={{ fontWeight: 800, fontSize: 13 }}>Install Orkio</div>
+          <div style={{ fontWeight: 800, fontSize: 13 }}>Install {productLabel}</div>
           <div style={{ opacity: 0.78, maxWidth: 420 }}>
             {isIOS && !deferredPrompt
               ? "Tap Share and then Add to Home Screen."
-              : "Keep Orkio one tap away with the full-screen PWA experience."}
+              : `Keep ${productLabel} one tap away with the full-screen PWA experience.`}
           </div>
         </div>
       </div>

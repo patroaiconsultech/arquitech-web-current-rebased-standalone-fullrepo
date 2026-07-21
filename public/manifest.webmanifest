@@ -6,8 +6,8 @@
   "start_url": "/app?source=arquitech&agent=aria&product=arquitech&onboarding=1",
   "scope": "/",
   "display": "standalone",
-  "theme_color": "#777d50",
-  "background_color": "#f4f4f4",
+  "theme_color": "#060812",
+  "background_color": "#060812",
   "icons": [
     {
       "src": "/icons/glip-192.png",
@@ -19,5 +19,10 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any"
 }

@@ -98,6 +98,12 @@ app.get("/env.js", (_req, res) => {
   );
 });
 
+app.get("/sw.js", (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Service-Worker-Allowed", "/");
+  res.type("application/javascript").sendFile(path.join(distDir, "sw.js"));
+});
+
 app.use(express.static(distDir, { index: false }));
 
 app.use("/api", async (req, res) => {

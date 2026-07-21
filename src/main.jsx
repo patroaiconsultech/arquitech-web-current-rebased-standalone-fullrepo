@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
+import "./index.css";
 
 function BootFallback({ error }) {
   return (
@@ -64,6 +65,24 @@ function BootFallback({ error }) {
     </div>
   );
 }
+
+
+function registerGlipServiceWorker() {
+  if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js", { scope: "/" })
+      .then((registration) => {
+        console.info("[GLIP_PWA_SW_READY]", { scope: registration.scope });
+      })
+      .catch((error) => {
+        console.warn("[GLIP_PWA_SW_FAILED]", error?.message || error);
+      });
+  }, { once: true });
+}
+
+registerGlipServiceWorker();
 
 try {
   console.info("[ARQUITECH_BOOT]", {
