@@ -2,7 +2,6 @@ import React from "react";
 import { Link } from "react-router-dom";
 
 import "../styles/arquitech.css";
-import sabrinaHasseImg from "../assets/images/sabrina-hasse.jpeg";
 
 /**
  * GLIP-01 — Narrative & Brand Layer
@@ -12,6 +11,7 @@ import sabrinaHasseImg from "../assets/images/sabrina-hasse.jpeg";
  * A experiência visível passa a ser GLIP + Aria, sem expor Orkio/PatroAI ao usuário.
  */
 const authUrl = "/auth?source=arquitech&agent=aria&product=arquitech&onboarding=1";
+const sabrinaHasseImg = "/arquitech-assets/sabrina-hasse.jpeg";
 
 const modules = [
   {
@@ -215,6 +215,7 @@ export default function ArquitechLanding() {
               src={sabrinaHasseImg}
               alt="Arquiteta Sabrina Hasse segurando uma pasta da GLIP Arquitetura"
               loading="lazy"
+              decoding="async"
               style={{
                 display: "block",
                 width: "100%",

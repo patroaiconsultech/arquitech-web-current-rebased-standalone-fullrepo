@@ -1,0 +1,17 @@
+{
+  "patch_id": "AO-GLIP06B-public-sabrina-image-stable",
+  "diagnostic": "Frontend enviado builda com a imagem, então a falha provável é deploy/cache/branch. O patch muda a imagem para public/arquitech-assets, caminho diretamente testável em produção.",
+  "files": [
+    "src/routes/ArquitechLanding.jsx",
+    "public/arquitech-assets/sabrina-hasse.jpeg",
+    "src/assets/images/sabrina-hasse.jpeg",
+    "tools/verify_ao_glip06b_public_image.py",
+    "docs/AO_GLIP06B_PUBLIC_IMAGE_README.md"
+  ],
+  "validation": [
+    "python3 tools/verify_ao_glip06b_public_image.py",
+    "npm run build",
+    "abrir /arquitech-assets/sabrina-hasse.jpeg no preview/producao",
+    "abrir /arquitech e clicar em Quem somos"
+  ]
+}
