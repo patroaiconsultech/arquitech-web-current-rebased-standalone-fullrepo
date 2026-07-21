@@ -1,0 +1,41 @@
+# AO-GLIP04+05 — Pacote completo para upload único
+
+Este pacote contém o arquivo completo:
+
+- `src/routes/AppConsole.jsx`
+
+Ele foi gerado a partir do arquivo enviado como `AppConsole (76).jsx`.
+
+## Objetivo
+
+Unir o patch mínimo com a evolução premium:
+
+1. Blindagem de identidade da Aria no fluxo GLIP/Arquitech.
+2. Proteção contra vazamento de Orkio/Orion/Team/AO/runtime no primeiro token.
+3. CTAs premium mais humanos, seguros e alinhados à Aria.
+4. Mensagens de voz/runtime transformadas em copy de usuário final.
+5. Preservação das rotas e da estrutura existente do `AppConsole.jsx`.
+
+## Como usar no GitHub
+
+Suba o conteúdo do ZIP na raiz do repo WEB, mantendo a estrutura:
+
+```text
+src/routes/AppConsole.jsx
+tools/verify_ao_glip04_05_full_package.py
+docs/...
+AO_GLIP04_05_MANIFEST.json
+```
+
+## Validação local recomendada
+
+```bash
+python3 tools/verify_ao_glip04_05_full_package.py
+npm run build
+```
+
+## Veredito
+
+Amarelo até teste real da jornada.
+
+Não considerar resolvido sem testar a primeira resposta da Aria em preview/produção.

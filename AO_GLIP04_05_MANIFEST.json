@@ -1,0 +1,408 @@
+#!/usr/bin/env python3
+"""
+AO-GLIP04+05 — Persona Guard + Premium UX Shell
+
+Aplicador idempotente para o repo WEB.
+Altera apenas src/routes/AppConsole.jsx.
+Não faz commit, push, merge, deploy, migration, backend ou rotas.
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import shutil
+import sys
+from pathlib import Path
+
+
+TARGET = Path("src/routes/AppConsole.jsx")
+SENTINEL = "AO_GLIP_04_05_PERSONA_PREMIUM"
+
+
+HELPERS = r"""
+
+/* AO-GLIP04+05 — UX persona guard + premium conversational shell */
+const AO_GLIP_04_05_PERSONA_PREMIUM = true;
+
+function getGlipAssistantDisplayName() {
+  return "Aria";
+}
+
+function containsGlipAriaIdentityLeak(value) {
+  const text = String(value || "").toLowerCase();
+
+  if (!text.trim()) return false;
+
+  return [
+    "orkio",
+    "orion",
+    "@orion",
+    "@team",
+    "chris",
+    "patroai",
+    "patroaí",
+    "ao20",
+    "ao-20",
+    "war_room",
+    "war room",
+    "auditoria",
+    "auditor",
+    "router",
+    "runtime",
+    "dry-run",
+    "dry run",
+    "governance",
+    "governança",
+    "branch/pr",
+    "branch pr"
+  ].some((term) => text.includes(term));
+}
+
+function sanitizeGlipAriaStreamDelta(delta, currentContent = "") {
+  const raw = String(delta || "");
+  if (!raw) return "";
+
+  const current = String(currentContent || "");
+  const combinedStart = (current + raw).slice(0, 700);
+
+  if (containsGlipAriaIdentityLeak(combinedStart)) {
+    if (current.trim()) return "";
+    return "Aria está organizando sua resposta com segurança...";
+  }
+
+  return raw;
+}
+
+function normalizeUserFacingRuntimeMessage(value, context = "") {
+  const raw = String(value || "").trim();
+  const lower = raw.toLowerCase();
+
+  if (!raw) {
+    return context === "voice"
+      ? "Não consegui acessar a voz neste momento. Você pode continuar por texto."
+      : "Não consegui concluir esta ação agora. A conversa foi preservada.";
+  }
+
+  if (
+    lower.includes("requested device not found") ||
+    lower.includes("device not found") ||
+    lower.includes("notfounderror") ||
+    lower.includes("microphone not found") ||
+    lower.includes("no input devices")
+  ) {
+    return "Microfone não encontrado. Verifique a conexão e a permissão do navegador. Você também pode continuar por texto.";
+  }
+
+  if (
+    lower.includes("permission denied") ||
+    lower.includes("notallowederror") ||
+    lower.includes("permission dismissed")
+  ) {
+    return "Permissão de microfone negada. Libere o acesso no navegador ou continue por texto.";
+  }
+
+  if (
+    lower.includes("realtime connection failed") ||
+    lower.includes("realtime connection disconnected") ||
+    lower.includes("pc_failed") ||
+    lower.includes("datachannel") ||
+    lower.includes("failed to trigger realtime response") ||
+    lower.includes("realtime runtime error")
+  ) {
+    return "A conexão de voz oscilou, mas a conversa continua por texto normalmente.";
+  }
+
+  if (
+    lower.includes("onboarding incomplete") ||
+    lower.includes("cadastro complementar pendente")
+  ) {
+    return "Seu cadastro complementar precisa ser concluído para liberar este recurso. Se você acabou de salvar, tente novamente em instantes.";
+  }
+
+  if (lower === "[object object]") {
+    return "Não consegui concluir esta ação agora. Tente novamente em instantes.";
+  }
+
+  if (containsGlipAriaIdentityLeak(raw)) {
+    return "Aria está reorganizando a resposta para manter a continuidade da conversa.";
+  }
+
+  return raw;
+}
+
+function sanitizeGlipAriaVisibleMessage(value, context = "") {
+  return normalizeUserFacingRuntimeMessage(value, context);
+}
+
+"""
+
+
+def replace_literal(src: str, old: str, new: str) -> tuple[str, int]:
+    count = src.count(old)
+    if count:
+        src = src.replace(old, new)
+    return src, count
+
+
+def replace_regex(src: str, pattern: str, repl: str, *, flags=0, count=0) -> tuple[str, int]:
+    new_src, n = re.subn(pattern, repl, src, count=count, flags=flags)
+    return new_src, n
+
+
+def insert_helpers(src: str) -> tuple[str, int]:
+    if SENTINEL in src:
+        return src, 0
+    imports = list(re.finditer(r"^import\s+.*?;\s*$", src, flags=re.MULTILINE))
+    if imports:
+        insert_at = imports[-1].end()
+        return src[:insert_at] + HELPERS + src[insert_at:], 1
+    return HELPERS + "\n" + src, 1
+
+
+def patch_append_to_placeholder(src: str) -> tuple[str, int]:
+    changes = 0
+    pattern = r"(function\s+appendToPlaceholder\s*\(\s*delta\s*\)\s*\{\s*if\s*\(!delta\)\s*return;\s*)(?!\s*delta\s*=\s*sanitizeGlipAriaStreamDelta)"
+    repl = r"""\1
+    delta = sanitizeGlipAriaStreamDelta(delta, "");
+    if (!delta) return;
+"""
+    src, n = replace_regex(src, pattern, repl, flags=re.DOTALL, count=1)
+    changes += n
+
+    old_block = """          messages[i] = {
+            ...m,
+            content: oldContent + delta,
+          };"""
+    new_block = """          const safeDelta = sanitizeGlipAriaStreamDelta(delta, oldContent);
+          if (!safeDelta) return messages;
+
+          messages[i] = {
+            ...m,
+            content: oldContent + safeDelta,
+            agent_name: getGlipAssistantDisplayName(),
+          };"""
+    src, n = replace_literal(src, old_block, new_block)
+    changes += n
+
+    pattern = r"""messages\[i\]\s*=\s*\{\s*\.\.\.m,\s*content:\s*oldContent\s*\+\s*delta,\s*\};"""
+    repl = """const safeDelta = sanitizeGlipAriaStreamDelta(delta, oldContent);
+          if (!safeDelta) return messages;
+
+          messages[i] = {
+            ...m,
+            content: oldContent + safeDelta,
+            agent_name: getGlipAssistantDisplayName(),
+          };"""
+    src, n = replace_regex(src, pattern, repl, flags=re.DOTALL, count=1)
+    changes += n
+    return src, changes
+
+
+def patch_load_agents(src: str) -> tuple[str, int]:
+    changes = 0
+    old = """      // Default destination (single) to Orkio if exists
+      if (!destSingle && Array.isArray(data)) {
+        const orkio = data.find(a => (a.name || "").toLowerCase() === "orkio") || data.find(a => a.is_default);
+        if (orkio) setDestSingle(orkio.id);
+      }"""
+    new = """      // Default destination (single) to Aria if exists; fallback keeps legacy compatibility.
+      if (!destSingle && Array.isArray(data)) {
+        const aria = data.find(a => (a.name || "").toLowerCase() === "aria");
+        const fallbackAgent = aria || data.find(a => (a.name || "").toLowerCase() === "orkio") || data.find(a => a.is_default);
+        if (fallbackAgent) setDestSingle(fallbackAgent.id);
+      }"""
+    src, n = replace_literal(src, old, new)
+    changes += n
+
+    pattern = r"""const\s+orkio\s*=\s*data\.find\(a\s*=>\s*\(a\.name\s*\|\|\s*""\)\.toLowerCase\(\)\s*===\s*"orkio"\)\s*\|\|\s*data\.find\(a\s*=>\s*a\.is_default\);\s*if\s*\(orkio\)\s*setDestSingle\(orkio\.id\);"""
+    repl = """const aria = data.find(a => (a.name || "").toLowerCase() === "aria");
+        const fallbackAgent = aria || data.find(a => (a.name || "").toLowerCase() === "orkio") || data.find(a => a.is_default);
+        if (fallbackAgent) setDestSingle(fallbackAgent.id);"""
+    src, n = replace_regex(src, pattern, repl, flags=re.DOTALL, count=1)
+    changes += n
+    return src, changes
+
+
+def patch_welcome(src: str) -> tuple[str, int]:
+    changes = 0
+    pairs = [
+        ('localStorage.getItem("orkio_welcome_shown")', 'localStorage.getItem("glip_aria_welcome_shown")'),
+        ('localStorage.setItem("orkio_welcome_shown", "1")', 'localStorage.setItem("glip_aria_welcome_shown", "1")'),
+        (
+            'content: "Hi — I’m Orkio. You can type your message here, or tap Realtime and speak with me if you\\\'re in a quieter environment. I’m ready when you are.",',
+            'content: "Olá — eu sou a Aria. Você pode escrever aqui ou ativar a voz quando quiser. Já estou pronta para continuar com clareza.",'
+        ),
+        (
+            'content: "Hi — I’m Orkio. You can type your message here, or tap Realtime and speak with me if you\'re in a quieter environment. I’m ready when you are.",',
+            'content: "Olá — eu sou a Aria. Você pode escrever aqui ou ativar a voz quando quiser. Já estou pronta para continuar com clareza.",'
+        ),
+    ]
+    for old, new in pairs:
+        src, n = replace_literal(src, old, new)
+        changes += n
+    return src, changes
+
+
+def patch_status_and_copy(src: str) -> tuple[str, int]:
+    changes = 0
+    replacements = {
+        'agent_name: "Orkio"': 'agent_name: getGlipAssistantDisplayName()',
+        "agent_name: 'Orkio'": "agent_name: getGlipAssistantDisplayName()",
+        '"⌛ Preparando resposta..."': '"Aria está preparando sua resposta..."',
+        '"⌛ Gerando resposta..."': '"Aria está organizando sua resposta..."',
+        "'⌛ Gerando resposta...'": '"Aria está organizando sua resposta..."',
+        '"🤖 Gerando resposta..."': '"✨ Aria organizando a resposta..."',
+        '"⚙️ Transcrevendo fala..."': '"✍️ Aria está transcrevendo..."',
+        '"🔊 Sintetizando voz..."': '"🔊 Aria preparando a voz..."',
+        '"🔈 Reproduzindo..."': '"🔈 Aria falando..."',
+        '"⏳ Aguardando..."': '"Aguardando sua próxima instrução..."',
+        'placeholder="Type your message..."': 'placeholder="Converse com a Aria..."',
+        'title="Attach file (PDF, DOCX, TXT)"': 'title="Anexar arquivo (PDF, DOCX, TXT)"',
+        'title={realtimeMode ? "Disable realtime voice" : "Enable realtime voice"}': 'title={realtimeMode ? "Desativar voz em tempo real" : "Ativar voz em tempo real"}',
+        'title={rtcReadyToRespond ? "Respond now (realtime)" : "Waiting for speech to finish"}': 'title={rtcReadyToRespond ? "Responder agora por voz" : "Aguardando a fala terminar"}',
+        'title="Talk to founder"': 'title="Falar com o fundador"',
+        "setUploadStatus('Ready to respond — click ▶️ or press Space/Enter.');": 'setUploadStatus("Aria está pronta para responder — clique ▶️ ou pressione Espaço/Enter.");',
+        'setUploadStatus("Ready to respond — click ▶️ or press Space/Enter.");': 'setUploadStatus("Aria está pronta para responder — clique ▶️ ou pressione Espaço/Enter.");',
+        '"Failed to trigger realtime response."': '"A voz oscilou, mas a conversa continua por texto."',
+        "'Failed to trigger realtime response.'": '"A voz oscilou, mas a conversa continua por texto."',
+        '"Realtime connection failed"': '"A conexão de voz oscilou"',
+        '"Realtime connection disconnected"': '"A conexão de voz foi encerrada com segurança"',
+        '"Onboarding incomplete"': '"Cadastro complementar pendente"',
+        "'Onboarding incomplete'": '"Cadastro complementar pendente"',
+        "'TTS retornou áudio vazio'": '"Não consegui preparar o áudio agora. A resposta por texto continua disponível."',
+        "'Erro ao reproduzir áudio'": '"Não consegui reproduzir o áudio agora. Você pode continuar por texto."',
+        "'Erro desconhecido no TTS'": '"Não consegui preparar a voz agora. Você pode continuar por texto."',
+    }
+    for old, new in replacements.items():
+        src, n = replace_literal(src, old, new)
+        changes += n
+
+    pairs = [
+        (
+            "v2vPhase === 'error'     ? `❌ ${v2vError || \"Erro no V2V\"}` :",
+            "v2vPhase === 'error'     ? `⚠️ ${normalizeUserFacingRuntimeMessage(v2vError || \"A conexão de voz oscilou\", \"voice\")}` :"
+        ),
+        (
+            'setV2vError(errMessage);\n            setUploadStatus(`⚠️ ${errMessage}`);',
+            'const friendlyRealtimeError = normalizeUserFacingRuntimeMessage(errMessage, "voice");\n            setV2vError(friendlyRealtimeError);\n            setUploadStatus(`⚠️ ${friendlyRealtimeError}`);'
+        ),
+        (
+            'setV2vError(e?.message || "Falha ao enviar mensagem");',
+            'setV2vError(normalizeUserFacingRuntimeMessage(e?.message || "Falha ao enviar mensagem", "voice"));'
+        ),
+        (
+            "setV2vError(`STT falhou: ${e?.message || 'erro desconhecido'}`);",
+            'setV2vError(normalizeUserFacingRuntimeMessage(e?.message || "erro desconhecido", "voice"));'
+        ),
+        (
+            'const visible = stripEventMarker(m.content);',
+            'const visible = sanitizeGlipAriaVisibleMessage(stripEventMarker(m.content));'
+        ),
+    ]
+    for old, new in pairs:
+        src, n = replace_literal(src, old, new)
+        changes += n
+    return src, changes
+
+
+def patch_ctas(src: str) -> tuple[str, int]:
+    changes = 0
+    regex_pairs = [
+        (
+            r"""function\s+handlePremiumPrimaryAction\s*\(\)\s*\{\s*void\s+sendMessage\([^;]*\);\s*\}""",
+            """function handlePremiumPrimaryAction() {
+    void sendMessage("Aria, me ajuda a transformar esta conversa em um próximo passo claro, prático e seguro.");
+  }"""
+        ),
+        (
+            r"""function\s+handlePremiumSecondaryAction\s*\(\)\s*\{\s*void\s+sendMessage\([^;]*\);\s*\}""",
+            """function handlePremiumSecondaryAction() {
+    fillPremiumPrompt("Aria, organize as oportunidades em ordem de impacto, risco e próximo passo.");
+    try {
+      setUploadStatus("Revise o pedido antes de enviar. A Aria mantém o contexto da conversa.");
+      setTimeout(() => setUploadStatus(""), 4200);
+    } catch {}
+  }"""
+        ),
+        (
+            r"""function\s+handlePremiumTertiaryAction\s*\(\)\s*\{\s*fillPremiumPrompt\([^;]*\);\s*\}""",
+            """function handlePremiumTertiaryAction() {
+    fillPremiumPrompt("Aria, crie um plano prático para avançarmos hoje com baixo risco e impacto real.");
+  }"""
+        ),
+    ]
+    for pattern, repl in regex_pairs:
+        src, n = replace_regex(src, pattern, repl, flags=re.DOTALL, count=1)
+        changes += n
+
+    literal_pairs = {
+        '"@Orion me entregue uma leitura executiva da prioridade mais importante agora e o próximo melhor passo."':
+            '"Aria, me entregue uma leitura executiva da prioridade mais importante agora e o próximo melhor passo."',
+        '"@Team mapeiem a oportunidade de maior impacto e menor risco para esta fase da plataforma."':
+            '"Aria, mapeie a oportunidade de maior impacto e menor risco para esta fase da plataforma."',
+        '"@Orion organize um plano prático de execução para hoje com foco em impacto real."':
+            '"Aria, organize um plano prático de execução para hoje com foco em impacto real."',
+    }
+    for old, new in literal_pairs.items():
+        src, n = replace_literal(src, old, new)
+        changes += n
+    return src, changes
+
+
+def apply_patch(src: str) -> tuple[str, dict]:
+    report = {}
+    for name, fn in [
+        ("helpers", insert_helpers),
+        ("welcome", patch_welcome),
+        ("load_agents", patch_load_agents),
+        ("append_to_placeholder", patch_append_to_placeholder),
+        ("ctas", patch_ctas),
+        ("status_and_copy", patch_status_and_copy),
+    ]:
+        src, n = fn(src)
+        report[name] = n
+    return src, report
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--write", action="store_true", help="escreve alterações no AppConsole.jsx")
+    parser.add_argument("--check", action="store_true", help="mostra plano sem escrever")
+    args = parser.parse_args()
+
+    if not TARGET.exists():
+        print(f"ERRO: não encontrei {TARGET}. Rode na raiz do repo WEB.", file=sys.stderr)
+        return 2
+
+    src = TARGET.read_text(encoding="utf-8")
+    patched, report = apply_patch(src)
+    changed = patched != src
+
+    print("AO-GLIP04+05 report:")
+    for key, value in report.items():
+        print(f"- {key}: {value}")
+
+    if not changed:
+        print("STATUS: nenhuma mudança necessária; arquivo parece já estar ajustado.")
+        return 0
+
+    if args.check and not args.write:
+        print("STATUS: mudanças seriam aplicadas. Rode com --write para gravar.")
+        return 0
+
+    if not args.write:
+        print("STATUS: mudanças detectadas, mas nada foi escrito. Use --write.")
+        return 0
+
+    backup = TARGET.with_suffix(TARGET.suffix + ".ao-glip04-05.bak")
+    shutil.copy2(TARGET, backup)
+    TARGET.write_text(patched, encoding="utf-8")
+    print(f"STATUS: escrito com sucesso em {TARGET}")
+    print(f"BACKUP: {backup}")
+    print("PRÓXIMO: npm run build")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
