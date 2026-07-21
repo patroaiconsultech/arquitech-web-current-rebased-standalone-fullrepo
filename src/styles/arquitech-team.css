@@ -1,0 +1,149 @@
+/* AO-GLIP06 — Quem somos / Sabrina Hasse
+   Camada visual isolada para não alterar a base existente de arquitech.css.
+*/
+
+.arquitech-about {
+  position: relative;
+}
+
+.arquitech-about::before {
+  content: "";
+  position: absolute;
+  inset: 8% auto auto 4%;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background: rgba(90, 104, 61, 0.08);
+  filter: blur(32px);
+  pointer-events: none;
+}
+
+.arquitech-about-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(320px, 0.78fr);
+  gap: clamp(28px, 5vw, 64px);
+  align-items: center;
+}
+
+.arquitech-about-copy {
+  max-width: 680px;
+}
+
+.arquitech-about-copy p {
+  max-width: 620px;
+}
+
+.arquitech-about-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.arquitech-about-values span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 14px;
+  border: 1px solid rgba(32, 32, 24, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  color: rgba(32, 32, 24, 0.72);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(14px);
+}
+
+.arquitech-founder-card {
+  overflow: hidden;
+  border: 1px solid rgba(32, 32, 24, 0.1);
+  border-radius: 32px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 28px 70px rgba(16, 20, 12, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+.arquitech-founder-photo-wrap {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: rgba(90, 104, 61, 0.08);
+}
+
+.arquitech-founder-photo-wrap::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 36%;
+  background: linear-gradient(to top, rgba(18, 22, 14, 0.34), transparent);
+  pointer-events: none;
+}
+
+.arquitech-founder-photo {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center top;
+  transform: scale(1.01);
+}
+
+.arquitech-founder-content {
+  padding: clamp(22px, 3vw, 30px);
+}
+
+.arquitech-founder-role {
+  margin: 0 0 8px;
+  color: rgba(90, 104, 61, 0.88);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.arquitech-founder-content h3 {
+  margin: 0;
+  color: rgba(24, 25, 20, 0.96);
+  font-size: clamp(1.55rem, 3vw, 2.15rem);
+  line-height: 1.06;
+}
+
+.arquitech-founder-content p:not(.arquitech-founder-role) {
+  margin: 16px 0 22px;
+  color: rgba(35, 35, 29, 0.68);
+  font-size: 1rem;
+  line-height: 1.72;
+}
+
+@media (max-width: 880px) {
+  .arquitech-about-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .arquitech-founder-card {
+    max-width: 540px;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .arquitech-about-values {
+    gap: 8px;
+  }
+
+  .arquitech-about-values span {
+    min-height: 34px;
+    padding: 7px 12px;
+    font-size: 0.78rem;
+  }
+
+  .arquitech-founder-card {
+    border-radius: 26px;
+  }
+
+  .arquitech-founder-content {
+    padding: 22px;
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "patch_id": "AO-GLIP06-quem-somos-sabrina-hasse",
+  "files": [
+    "src/routes/ArquitechLanding.jsx",
+    "src/assets/images/sabrina-hasse.jpeg",
+    "src/styles/arquitech-team.css",
+    "docs/AO_GLIP06_QUEM_SOMOS_README.md"
+  ],
+  "source_image": "sabrina-hasse.jpeg",
+  "notes": "Adicionar foto da Arquiteta Sabrina Hasse na seção Quem somos, com camada CSS isolada."
+}
