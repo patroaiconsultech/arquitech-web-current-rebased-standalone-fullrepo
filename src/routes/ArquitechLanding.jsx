@@ -2,7 +2,6 @@ import React from "react";
 import { Link } from "react-router-dom";
 
 import "../styles/arquitech.css";
-import "../styles/arquitech-team.css";
 import sabrinaHasseImg from "../assets/images/sabrina-hasse.jpeg";
 
 /**
@@ -158,56 +157,89 @@ export default function ArquitechLanding() {
         </div>
       </section>
 
-
-
-      <section className="arquitech-section arquitech-about" id="quem-somos" aria-labelledby="quem-somos-title">
-        <div className="arquitech-about-grid">
-          <div className="arquitech-about-copy">
+      <section className="arquitech-section" id="quem-somos" aria-labelledby="quem-somos-title">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: "clamp(28px, 5vw, 56px)",
+            alignItems: "center",
+          }}
+        >
+          <div>
             <p className="arquitech-kicker">Quem somos</p>
-            <h2 id="quem-somos-title">Arquitetura com escuta, método e presença humana.</h2>
+            <h2 id="quem-somos-title">A GLIP nasce da prática real da arquitetura.</h2>
             <p>
-              A GLIP nasce para aproximar tecnologia, organização e sensibilidade arquitetônica.
-              Antes de qualquer automação, existe uma jornada feita de pessoas, decisões, sonhos,
-              prazos, responsabilidades e detalhes que precisam ser preservados.
+              A GLIP Arquitetura une visão estética, organização de processos e inteligência
+              aplicada para conduzir projetos com mais clareza, presença e previsibilidade.
             </p>
             <p>
-              A Aria apoia o fluxo digital. A experiência humana segue no centro: entender o
-              cliente, organizar prioridades e conduzir cada etapa com clareza, elegância e confiança.
+              À frente dessa jornada está a arquiteta Sabrina Hasse, que traduz a essência da
+              marca em uma experiência próxima, sofisticada e funcional: escuta ativa, atenção
+              aos detalhes e compromisso com ambientes que conectam propósito, beleza e uso real.
             </p>
 
-            <div className="arquitech-about-values" aria-label="Valores da GLIP">
-              <span>Escuta</span>
-              <span>Clareza</span>
-              <span>Método</span>
-              <span>Cuidado</span>
+            <div
+              style={{
+                display: "grid",
+                gap: "14px",
+                marginTop: "28px",
+              }}
+            >
+              <article className="arquitech-flow-item" style={{ alignItems: "flex-start" }}>
+                <span>01</span>
+                <strong>Escuta e briefing com clareza</strong>
+              </article>
+              <article className="arquitech-flow-item" style={{ alignItems: "flex-start" }}>
+                <span>02</span>
+                <strong>Projeto com método, repertório e sensibilidade</strong>
+              </article>
+              <article className="arquitech-flow-item" style={{ alignItems: "flex-start" }}>
+                <span>03</span>
+                <strong>Jornada acompanhada pela Aria e pela equipe GLIP</strong>
+              </article>
             </div>
           </div>
 
-          <article className="arquitech-founder-card" aria-label="Arquiteta Sabrina Hasse">
-            <div className="arquitech-founder-photo-wrap">
-              <img
-                src={sabrinaHasseImg}
-                alt="Arquiteta Sabrina Hasse segurando material da marca GLIP Arquitetura"
-                className="arquitech-founder-photo"
-                loading="lazy"
-              />
-            </div>
+          <aside
+            aria-label="Arquiteta Sabrina Hasse"
+            style={{
+              borderRadius: "32px",
+              overflow: "hidden",
+              border: "1px solid rgba(255,255,255,0.16)",
+              background: "rgba(255,255,255,0.08)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.28)",
+            }}
+          >
+            <img
+              src={sabrinaHasseImg}
+              alt="Arquiteta Sabrina Hasse segurando uma pasta da GLIP Arquitetura"
+              loading="lazy"
+              style={{
+                display: "block",
+                width: "100%",
+                aspectRatio: "4 / 5",
+                objectFit: "cover",
+                objectPosition: "center top",
+              }}
+            />
 
-            <div className="arquitech-founder-content">
-              <p className="arquitech-founder-role">Arquiteta</p>
-              <h3>Sabrina Hasse</h3>
-              <p>
-                Sabrina Hasse representa o olhar humano da GLIP: sensibilidade estética,
-                atenção aos detalhes e responsabilidade profissional para transformar ideias
-                em ambientes com propósito, beleza e funcionalidade.
+            <div style={{ padding: "22px 24px 26px" }}>
+              <p className="arquitech-kicker" style={{ marginBottom: "8px" }}>
+                Arquiteta responsável
               </p>
-              <Link className="arquitech-secondary-button" to={authUrl}>
-                Iniciar briefing com Aria
-              </Link>
+              <h3 style={{ margin: 0, fontSize: "clamp(1.35rem, 2vw, 1.85rem)" }}>
+                Sabrina Hasse
+              </h3>
+              <p style={{ marginTop: "10px", marginBottom: 0, opacity: 0.78, lineHeight: 1.65 }}>
+                Presença humana, olhar técnico e sensibilidade estética para transformar
+                briefing, projeto e execução em uma experiência mais fluida.
+              </p>
             </div>
-          </article>
+          </aside>
         </div>
       </section>
+
 
       <section className="arquitech-section" id="flow">
         <div className="arquitech-section-heading">
