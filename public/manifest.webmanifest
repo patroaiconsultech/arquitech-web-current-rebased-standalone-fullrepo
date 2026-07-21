@@ -1,21 +1,21 @@
 {
   "id": "/",
-  "name": "Arquitech",
-  "short_name": "Arquitech",
-  "description": "Arquitech - arquitetura assistida por IA com ARIA.",
-  "start_url": "/",
+  "name": "GLIP Intelligence Architecture",
+  "short_name": "GLIP",
+  "description": "GLIP Intelligence Architecture - arquitetura assistida por IA com Aria.",
+  "start_url": "/app?source=arquitech&agent=aria&product=arquitech&onboarding=1",
   "scope": "/",
   "display": "standalone",
-  "theme_color": "#1f211c",
-  "background_color": "#f6f0e6",
+  "theme_color": "#777d50",
+  "background_color": "#f4f4f4",
   "icons": [
     {
-      "src": "/icons/orkio-192.png",
+      "src": "/icons/glip-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icons/orkio-512.png",
+      "src": "/icons/glip-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }

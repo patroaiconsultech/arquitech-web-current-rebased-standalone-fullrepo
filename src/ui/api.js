@@ -364,6 +364,33 @@ export async function uploadFile(
   });
 }
 
+export const generateDocumentArtifact = ({
+  token,
+  org,
+  tenant,
+  thread_id = null,
+  format,
+  title = null,
+  filename = null,
+  content = "",
+  rows = null,
+  requested_agent_hint = "aria",
+} = {}) =>
+  apiFetch("/api/document-artifacts/generate", {
+    method: "POST",
+    token,
+    org: org || tenant,
+    body: {
+      thread_id,
+      format,
+      title,
+      filename,
+      content,
+      rows,
+      requested_agent_hint,
+    },
+  });
+
 /* =========================
  * CHAT
  * ========================= */
@@ -382,6 +409,9 @@ export const chat = ({
   requested_agent_names = null,
   source = null,
   product = null,
+  context_mode = null,
+  runtime_persona = null,
+  persona_lock = null,
   top_k,
   trace_id,
   client_message_id,
@@ -406,6 +436,9 @@ export const chat = ({
       requested_agent_names,
       source,
       product,
+      context_mode,
+      runtime_persona,
+      persona_lock,
       top_k,
       trace_id,
       client_message_id,
@@ -427,6 +460,9 @@ export async function chatStream({
   requested_agent_names = null,
   source = null,
   product = null,
+  context_mode = null,
+  runtime_persona = null,
+  persona_lock = null,
   top_k,
   trace_id,
   client_message_id,
@@ -462,6 +498,9 @@ export async function chatStream({
         requested_agent_names,
         source,
         product,
+        context_mode,
+        runtime_persona,
+        persona_lock,
         top_k,
         trace_id,
         client_message_id,

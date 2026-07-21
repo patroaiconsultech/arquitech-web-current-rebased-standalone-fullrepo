@@ -49,6 +49,43 @@ const SUGGESTIONS = [
   "Orion, quais riscos técnicos eu devo validar antes de ampliar o beta?",
 ];
 
+const GLIP_AGENTS = [
+  {
+    id: "aria",
+    name: "Aria",
+    title: "Coordenadora GLIP",
+    description: "Organiza briefing, proposta, contrato, projeto, obra, fornecedores, aprovações e indicadores.",
+    prompt: "Aria, me ajuda a estruturar um briefing inicial para um projeto comercial.",
+  },
+  {
+    id: "proposal",
+    name: "Propostas",
+    title: "Escopo e honorários",
+    description: "Transforma informações do cliente em escopo, etapas, prazos, versões e pendências comerciais.",
+    prompt: "Aria, organize uma proposta comercial a partir deste briefing.",
+  },
+  {
+    id: "contracts",
+    name: "Contratos",
+    title: "Pendências e anexos",
+    description: "Ajuda a listar documentos, cláusulas de atenção, anexos, aprovações e próximos passos.",
+    prompt: "Aria, revise este fluxo de contrato e liste pendências antes do envio.",
+  },
+  {
+    id: "works",
+    name: "Obras",
+    title: "Cronograma e evidências",
+    description: "Acompanha obra, visitas, fornecedores, ocorrências, riscos, evidências e comunicação com cliente.",
+    prompt: "Aria, quais riscos e próximos passos devo acompanhar nesta obra?",
+  },
+];
+
+const GLIP_SUGGESTIONS = [
+  "Aria, me ajuda a organizar um briefing para uma loja comercial?",
+  "Aria, gere uma estrutura de proposta com escopo, etapas e pendências.",
+  "Aria, quais documentos preciso revisar antes de contrato, projeto e obra?",
+];
+
 const FEEDBACK_OPTIONS = [
   { id: "worked", label: "Funcionou bem", prompt: "Feedback beta: funcionou bem. O que funcionou foi: " },
   { id: "weak", label: "Resposta fraca", prompt: "Feedback beta: resposta fraca. O que faltou foi: " },
@@ -111,6 +148,7 @@ export default function EmptyStatePremium({
   onSecondaryAction,
   onTertiaryAction,
   onFillPrompt,
+  variant = "orkio",
 }) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const contextRows = useMemo(() => resolveContextRows(user), [user]);
@@ -118,6 +156,15 @@ export default function EmptyStatePremium({
     .split("@")[0]
     .split(" ")[0]
     .trim();
+  const isGlip = variant === "glip";
+  const agentCards = isGlip ? GLIP_AGENTS : AGENTS;
+  const suggestions = isGlip ? GLIP_SUGGESTIONS : SUGGESTIONS;
+  const headline = isGlip
+    ? (firstName ? `${firstName}, a Aria está pronta para organizar o fluxo GLIP.` : "A Aria está pronta para organizar o fluxo GLIP.")
+    : (firstName ? `${firstName}, seu Orkio está pronto.` : "Seu Orkio está pronto.");
+  const intro = isGlip
+    ? "Seu contexto foi recebido. A experiência GLIP + Aria está pronta para transformar briefing, proposta, contrato, projeto e obra em próximos passos claros."
+    : "Você chegou, seu contexto foi recebido e a equipe de agentes está organizada para transformar a primeira conversa em plano, análise ou roteiro de teste.";
 
   const handleAction = (id) => {
     if (id === "primary") {
@@ -262,7 +309,7 @@ export default function EmptyStatePremium({
               letterSpacing: "-0.045em",
             }}
           >
-            {firstName ? `${firstName}, seu Orkio está pronto.` : "Seu Orkio está pronto."}
+            {headline}
           </h1>
 
           <p
@@ -275,8 +322,7 @@ export default function EmptyStatePremium({
               maxWidth: 860,
             }}
           >
-            Você chegou, seu contexto foi recebido e a equipe de agentes está organizada para
-            transformar a primeira conversa em plano, análise ou roteiro de teste.
+            {intro}
           </p>
         </div>
 
@@ -313,7 +359,7 @@ export default function EmptyStatePremium({
             </div>
           </div>
 
-          {AGENTS.map((agent) => (
+          {agentCards.map((agent) => (
             <button
               key={agent.id}
               type="button"
@@ -346,7 +392,7 @@ export default function EmptyStatePremium({
             gap: 12,
           }}
         >
-          {SUGGESTIONS.map((suggestion) => (
+          {suggestions.map((suggestion) => (
             <button
               key={suggestion}
               type="button"
@@ -406,7 +452,7 @@ export default function EmptyStatePremium({
               cursor: "pointer",
             }}
           >
-            Acionar Team
+            {isGlip ? "Organizar proposta" : "Acionar Team"}
           </button>
 
           <button

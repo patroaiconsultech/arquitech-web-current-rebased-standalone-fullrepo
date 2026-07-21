@@ -1,23 +1,20 @@
 :root {
-  --glip-paper: #f8f3ea;
-  --glip-paper-strong: #fffaf2;
-  --glip-sand: #efe7da;
-  --glip-stone: #aaa09b;
-  --glip-olive: #747b45;
-  --glip-clay: #8a4b3d;
-  --glip-nude: #d9a06d;
-  --glip-ink: #24211d;
-  --glip-muted: rgba(36, 33, 29, 0.68);
-  --glip-line: rgba(47, 42, 36, 0.12);
-  --glip-card: rgba(255, 255, 255, 0.62);
+  --glip-paper: #f4f4f4;
+  --glip-white: #ffffff;
+  --glip-sand: #d2ccbe;
+  --glip-stone: #b7b49d;
+  --glip-olive: #777d50;
+  --glip-olive-dark: #555a37;
+  --glip-ink: #24251d;
+  --glip-graphite: #12130f;
+  --glip-muted: rgba(36, 37, 29, 0.68);
+  --glip-line: rgba(85, 90, 55, 0.18);
+  --glip-line-dark: rgba(244, 244, 244, 0.16);
 }
 
 .arquitech-page {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top right, rgba(116, 123, 69, 0.16), transparent 34rem),
-    radial-gradient(circle at 12% 18%, rgba(217, 160, 109, 0.2), transparent 28rem),
-    linear-gradient(180deg, #f8f3ea 0%, #efe7da 42%, #e6ddcf 100%);
+  background: var(--glip-paper);
   color: var(--glip-ink);
   font-family:
     Inter,
@@ -29,75 +26,62 @@
     sans-serif;
 }
 
-.arquitech-hero {
-  min-height: 100vh;
-  padding: 28px clamp(20px, 5vw, 72px) 80px;
-  position: relative;
-  overflow: hidden;
+.arquitech-page * {
+  box-sizing: border-box;
 }
 
-.arquitech-hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
+.arquitech-hero {
+  min-height: 100vh;
+  padding: 28px clamp(20px, 5vw, 72px) 72px;
   background:
-    linear-gradient(rgba(47, 42, 36, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(47, 42, 36, 0.045) 1px, transparent 1px);
-  background-size: 44px 44px;
-  opacity: 0.26;
-  pointer-events: none;
-  mask-image: linear-gradient(180deg, black 0%, transparent 92%);
+    linear-gradient(90deg, rgba(119, 125, 80, 0.08) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(119, 125, 80, 0.08) 1px, transparent 1px),
+    linear-gradient(180deg, #f4f4f4 0%, #ece9e1 100%);
+  background-size: 56px 56px, 56px 56px, auto;
 }
 
 .arquitech-nav,
 .arquitech-hero-grid,
 .arquitech-section,
+.arquitech-journey,
 .arquitech-disclaimer {
-  position: relative;
-  z-index: 1;
+  max-width: 1180px;
+  margin-inline: auto;
 }
 
 .arquitech-nav {
-  max-width: 1180px;
-  margin: 0 auto 76px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
+  margin-bottom: clamp(56px, 10vh, 112px);
 }
 
 .arquitech-brand {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   color: var(--glip-ink);
   text-decoration: none;
-  font-weight: 900;
-  letter-spacing: 0.08em;
+  font-weight: 800;
+  letter-spacing: 0;
   text-transform: uppercase;
+}
+
+.arquitech-brand-logo {
+  width: clamp(138px, 16vw, 190px);
+  height: auto;
+  display: block;
+  mix-blend-mode: multiply;
 }
 
 .arquitech-brand small {
   display: block;
-  margin-top: 2px;
-  font-size: 10px;
-  letter-spacing: 0.16em;
   color: var(--glip-muted);
-}
-
-.arquitech-brand-mark,
-.arquitech-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  background:
-    radial-gradient(circle at 32% 18%, #fffaf2, transparent 42%),
-    linear-gradient(135deg, #747b45, #8a4b3d 56%, #d9a06d);
-  color: #fffaf2;
-  font-weight: 950;
-  box-shadow: 0 18px 40px rgba(47, 42, 36, 0.16);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .arquitech-nav-actions {
@@ -108,153 +92,458 @@
 }
 
 .arquitech-nav-actions a {
-  color: rgba(36, 33, 29, 0.72);
+  color: rgba(36, 37, 29, 0.72);
   text-decoration: none;
-  font-weight: 800;
   font-size: 14px;
+  font-weight: 800;
 }
 
 .arquitech-nav-actions .arquitech-nav-cta {
-  color: var(--glip-paper);
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
   background: var(--glip-ink);
-  border-radius: 999px;
-  padding: 11px 16px;
+  color: var(--glip-paper);
+  border-radius: 8px;
+  padding: 0 16px;
+}
+
+.glip-language-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--glip-line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.glip-language-switch button {
+  min-width: 38px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(36, 37, 29, 0.68);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 920;
+}
+
+.glip-language-switch button[aria-pressed="true"] {
+  background: var(--glip-ink);
+  color: var(--glip-paper);
 }
 
 .arquitech-hero-grid {
-  max-width: 1180px;
-  margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.82fr);
-  gap: clamp(32px, 6vw, 72px);
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
   align-items: center;
+  gap: clamp(34px, 7vw, 86px);
 }
 
 .arquitech-kicker {
-  color: var(--glip-clay);
+  margin: 0 0 14px;
+  color: var(--glip-olive-dark);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0;
   text-transform: uppercase;
-  font-weight: 950;
-  letter-spacing: 0.16em;
-  font-size: 12px;
-  margin: 0 0 16px;
 }
 
 .arquitech-hero h1 {
-  font-size: clamp(44px, 7vw, 84px);
+  margin: 0;
+  max-width: 850px;
+  color: var(--glip-graphite);
+  font-size: clamp(46px, 7.2vw, 92px);
   line-height: 0.96;
-  margin: 0 0 24px;
-  letter-spacing: -0.075em;
-  color: #211d19;
+  letter-spacing: 0;
+  font-weight: 780;
 }
 
 .arquitech-lead {
+  max-width: 720px;
+  margin: 28px 0 0;
+  color: rgba(36, 37, 29, 0.78);
   font-size: clamp(18px, 2vw, 22px);
   line-height: 1.62;
-  color: rgba(36, 33, 29, 0.76);
-  max-width: 760px;
-  margin: 0 0 30px;
 }
 
 .arquitech-hero-actions {
   display: flex;
-  gap: 14px;
   flex-wrap: wrap;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-top: 34px;
 }
 
 .arquitech-primary-button,
-.arquitech-secondary-button {
-  display: inline-flex;
+.arquitech-secondary-button,
+.arquitech-inline-link,
+.glip-install-button {
   min-height: 48px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  padding: 0 22px;
-  font-weight: 950;
+  border-radius: 8px;
+  padding: 0 20px;
   text-decoration: none;
+  font-weight: 900;
   transition:
     transform 160ms ease,
-    box-shadow 160ms ease,
+    background-color 160ms ease,
     border-color 160ms ease;
 }
 
 .arquitech-primary-button {
+  border: 0;
   background: var(--glip-ink);
   color: var(--glip-paper);
-  box-shadow: 0 18px 40px rgba(47, 42, 36, 0.2);
+  cursor: pointer;
 }
 
-.arquitech-secondary-button {
+.arquitech-secondary-button,
+.arquitech-inline-link,
+.glip-install-button {
+  border: 1px solid var(--glip-line);
   color: var(--glip-ink);
-  border: 1px solid rgba(47, 42, 36, 0.18);
-  background: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.58);
 }
 
 .arquitech-primary-button:hover,
-.arquitech-secondary-button:hover {
+.arquitech-secondary-button:hover,
+.arquitech-inline-link:hover,
+.glip-install-button:hover {
   transform: translateY(-1px);
 }
 
-.arquitech-fineprint {
-  color: rgba(36, 33, 29, 0.54);
-  font-size: 13px;
-  line-height: 1.5;
+.glip-install-button {
+  cursor: pointer;
+  font: inherit;
+}
+
+.glip-install-button-hero {
+  background: var(--glip-sand);
+  border-color: transparent;
+  color: var(--glip-ink);
+}
+
+.glip-install-compact-label {
+  display: none;
+}
+
+.arquitech-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
   max-width: 620px;
+  margin-top: 44px;
+  border: 1px solid var(--glip-line);
+  background: var(--glip-line);
 }
 
-.arquitech-aria-card {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(47, 42, 36, 0.1);
-  box-shadow: 0 34px 80px rgba(47, 42, 36, 0.14);
-  border-radius: 34px;
-  padding: 26px;
-  backdrop-filter: blur(18px);
+.arquitech-metrics div {
+  min-height: 112px;
+  padding: 18px;
+  background: rgba(244, 244, 244, 0.78);
 }
 
-.arquitech-card-header {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  margin-bottom: 26px;
-}
-
-.arquitech-card-header strong,
-.arquitech-card-header span {
+.arquitech-metrics strong,
+.arquitech-metrics span {
   display: block;
 }
 
-.arquitech-card-header strong {
+.arquitech-metrics strong {
+  color: var(--glip-olive-dark);
+  font-size: clamp(30px, 4vw, 46px);
+  line-height: 1;
+}
+
+.arquitech-metrics span {
+  margin-top: 10px;
+  color: var(--glip-muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.arquitech-brand-stage {
+  display: grid;
+  gap: 20px;
+}
+
+.arquitech-brand-stage img {
+  width: 100%;
+  display: block;
+  border: 1px solid var(--glip-line);
+}
+
+.arquitech-stage-note {
+  display: grid;
+  grid-template-columns: 0.72fr 1fr;
+  gap: 20px;
+  align-items: start;
+  padding-top: 20px;
+  border-top: 1px solid var(--glip-line);
+}
+
+.arquitech-stage-note span {
+  color: var(--glip-olive-dark);
+  font-weight: 900;
+}
+
+.arquitech-stage-note strong {
+  color: var(--glip-ink);
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 760;
+}
+
+.arquitech-section {
+  padding: clamp(72px, 10vw, 122px) clamp(20px, 5vw, 72px);
+}
+
+.arquitech-editorial,
+.arquitech-global-band,
+.arquitech-aria-section {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.78fr) minmax(0, 1fr);
+  gap: clamp(28px, 7vw, 88px);
+  align-items: start;
+}
+
+.arquitech-section h2,
+.arquitech-disclaimer h2 {
+  margin: 0;
+  color: var(--glip-graphite);
+  font-size: clamp(34px, 5vw, 62px);
+  line-height: 1;
+  letter-spacing: 0;
+  font-weight: 760;
+}
+
+.arquitech-section p,
+.arquitech-disclaimer p {
+  margin: 0;
+  color: rgba(36, 37, 29, 0.72);
+  font-size: 17px;
+  line-height: 1.75;
+}
+
+.arquitech-rich-text {
+  display: grid;
+  gap: 18px;
+}
+
+.arquitech-section-heading {
+  max-width: 780px;
+  margin-bottom: 32px;
+}
+
+.arquitech-section-heading p {
+  margin-top: 18px;
+}
+
+.arquitech-specialties {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 5vw, 72px) clamp(72px, 9vw, 108px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.arquitech-specialties span {
+  border: 1px solid var(--glip-line);
+  background: rgba(255, 255, 255, 0.58);
+  color: rgba(36, 37, 29, 0.78);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 820;
+}
+
+.arquitech-values-section {
+  padding-top: 0;
+}
+
+.arquitech-values-grid,
+.arquitech-project-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--glip-line);
+  border: 1px solid var(--glip-line);
+}
+
+.arquitech-values-grid article,
+.arquitech-project-grid article {
+  background: rgba(255, 255, 255, 0.62);
+  padding: 26px;
+}
+
+.arquitech-values-grid article {
+  min-height: 250px;
+}
+
+.arquitech-values-grid span {
+  display: block;
+  color: var(--glip-olive-dark);
+  font-size: 13px;
+  font-weight: 920;
+  text-transform: uppercase;
+  margin-bottom: 34px;
+}
+
+.arquitech-values-grid p {
+  font-size: 18px;
+  line-height: 1.62;
+}
+
+.arquitech-journey {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1px;
+  padding-inline: clamp(20px, 5vw, 72px);
+  background: var(--glip-line);
+  border-block: 1px solid var(--glip-line);
+}
+
+.arquitech-journey article {
+  min-height: 250px;
+  padding: 22px;
+  background: #ece9e1;
+}
+
+.arquitech-journey span,
+.arquitech-capability-list span {
+  color: var(--glip-olive-dark);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.arquitech-journey h3,
+.arquitech-capability-list h3 {
+  margin: 48px 0 12px;
+  color: var(--glip-graphite);
+  font-size: 22px;
+  line-height: 1.12;
+}
+
+.arquitech-journey p,
+.arquitech-capability-list p {
+  margin: 0;
+  color: rgba(36, 37, 29, 0.68);
+  font-size: 14px;
+  line-height: 1.58;
+}
+
+.arquitech-projects-section {
+  background: #f4f4f4;
+}
+
+.arquitech-project-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.arquitech-project-grid article {
+  min-height: 360px;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.arquitech-project-placeholder {
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--glip-line);
+  background:
+    linear-gradient(135deg, rgba(119, 125, 80, 0.16), transparent 45%),
+    linear-gradient(180deg, #ece9e1, #d2ccbe);
+  display: flex;
+  align-items: flex-end;
+  padding: 14px;
+}
+
+.arquitech-project-placeholder span {
+  color: var(--glip-olive-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.arquitech-project-grid h3 {
+  margin: 0;
+  color: var(--glip-graphite);
   font-size: 20px;
+  line-height: 1.18;
 }
 
-.arquitech-card-header span {
-  color: rgba(36, 33, 29, 0.58);
-  margin-top: 2px;
+.arquitech-project-grid p {
+  margin: 0;
+  color: var(--glip-muted);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
-.arquitech-chat-preview {
+.arquitech-aria-section {
+  background: var(--glip-graphite);
+  max-width: none;
+  padding-inline: max(clamp(20px, 5vw, 72px), calc((100vw - 1180px) / 2 + 72px));
+}
+
+.arquitech-aria-section .arquitech-kicker {
+  color: var(--glip-stone);
+}
+
+.arquitech-aria-section h2,
+.arquitech-aria-section p {
+  color: var(--glip-paper);
+}
+
+.arquitech-aria-section .arquitech-aria-copy > p {
+  margin-top: 22px;
+  color: rgba(244, 244, 244, 0.76);
+}
+
+.arquitech-principles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 30px;
+}
+
+.arquitech-principles span,
+.arquitech-mini-metrics span {
+  border: 1px solid var(--glip-line-dark);
+  color: rgba(244, 244, 244, 0.82);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.arquitech-dialogue-card {
   display: grid;
   gap: 14px;
 }
 
 .arquitech-user-bubble,
 .arquitech-aria-bubble {
-  border-radius: 22px;
-  padding: 18px;
   margin: 0;
+  border-radius: 8px;
+  padding: 18px;
   line-height: 1.55;
 }
 
 .arquitech-user-bubble {
-  background: var(--glip-ink);
-  color: var(--glip-paper);
-  margin-left: 32px;
+  margin-left: 42px;
+  background: var(--glip-paper);
+  color: var(--glip-ink);
 }
 
 .arquitech-aria-bubble {
-  background: #f5eee2;
-  border: 1px solid rgba(176, 141, 87, 0.18);
-  margin-right: 28px;
+  margin-right: 42px;
+  border: 1px solid var(--glip-line-dark);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(244, 244, 244, 0.78);
 }
 
 .arquitech-aria-bubble strong,
@@ -264,164 +553,379 @@
 
 .arquitech-aria-bubble strong {
   margin-bottom: 8px;
+  color: var(--glip-white);
 }
 
-.arquitech-mini-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 22px;
+.arquitech-aria-section .arquitech-inline-link {
+  justify-self: start;
+  background: var(--glip-sand);
+  color: var(--glip-ink);
+  border-color: transparent;
 }
 
-.arquitech-mini-metrics span {
-  border: 1px solid rgba(47, 42, 36, 0.1);
-  background: rgba(255, 255, 255, 0.58);
-  color: rgba(36, 33, 29, 0.72);
-  border-radius: 999px;
-  padding: 9px 12px;
-  font-size: 12px;
-  font-weight: 850;
-}
-
-.arquitech-section {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 88px clamp(20px, 5vw, 72px);
-}
-
-.arquitech-section-heading {
-  max-width: 780px;
-  margin-bottom: 30px;
-}
-
-.arquitech-section h2,
-.arquitech-disclaimer h2 {
-  font-size: clamp(34px, 5vw, 58px);
-  line-height: 1;
-  letter-spacing: -0.05em;
-  margin: 0 0 18px;
-}
-
-.arquitech-section p,
-.arquitech-disclaimer p {
-  color: rgba(36, 33, 29, 0.7);
-  line-height: 1.72;
-  font-size: 17px;
-}
-
-.arquitech-flow,
 .arquitech-capability-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  gap: 1px;
+  border: 1px solid var(--glip-line);
+  background: var(--glip-line);
 }
 
-.arquitech-flow-item,
 .arquitech-capability-list article {
-  border-radius: 26px;
+  min-height: 230px;
   padding: 24px;
-  background: rgba(255, 255, 255, 0.52);
-  border: 1px solid rgba(47, 42, 36, 0.1);
+  background: rgba(255, 255, 255, 0.62);
 }
 
-.arquitech-flow-item {
+.arquitech-global-band {
+  border-block: 1px solid var(--glip-line);
+  background: #ece9e1;
+  max-width: none;
+  padding-inline: max(clamp(20px, 5vw, 72px), calc((100vw - 1180px) / 2 + 72px));
+}
+
+.arquitech-briefing-section {
   display: grid;
-  gap: 10px;
+  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.08fr);
+  gap: clamp(28px, 7vw, 88px);
+  align-items: start;
+  background:
+    linear-gradient(90deg, rgba(119, 125, 80, 0.06) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(119, 125, 80, 0.06) 1px, transparent 1px),
+    #f4f4f4;
+  background-size: 48px 48px;
 }
 
-.arquitech-flow-item span,
-.arquitech-capability-list span {
-  color: var(--glip-clay);
-  font-weight: 950;
-  letter-spacing: 0.14em;
+.arquitech-briefing-copy p {
+  margin-top: 22px;
+}
+
+.arquitech-briefing-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid var(--glip-line);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.arquitech-briefing-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.arquitech-briefing-form span {
+  color: var(--glip-olive-dark);
   font-size: 12px;
+  font-weight: 900;
   text-transform: uppercase;
 }
 
-.arquitech-flow-item strong {
-  font-size: 20px;
+.arquitech-briefing-form input,
+.arquitech-briefing-form select,
+.arquitech-briefing-form textarea {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--glip-line);
+  border-radius: 8px;
+  background: rgba(244, 244, 244, 0.72);
+  color: var(--glip-ink);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  padding: 11px 12px;
 }
 
-.arquitech-capability-list h3 {
-  margin: 14px 0 8px;
-  font-size: 22px;
+.arquitech-briefing-form textarea {
+  resize: vertical;
 }
 
-.arquitech-systems {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 34px;
-  align-items: center;
-  background: rgba(47, 42, 36, 0.06);
-  border-radius: 40px;
-  padding: clamp(28px, 5vw, 54px);
+.arquitech-briefing-form input:focus,
+.arquitech-briefing-form select:focus,
+.arquitech-briefing-form textarea:focus {
+  border-color: rgba(85, 90, 55, 0.48);
+  box-shadow: 0 0 0 3px rgba(119, 125, 80, 0.12);
 }
 
-.arquitech-system-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+.arquitech-briefing-form-wide,
+.arquitech-briefing-actions {
+  grid-column: 1 / -1;
 }
 
-.arquitech-system-grid span,
-.arquitech-tags span {
-  border: 1px solid rgba(47, 42, 36, 0.12);
-  background: rgba(255, 255, 255, 0.56);
-  border-radius: 999px;
-  padding: 13px 16px;
-  font-weight: 850;
-  color: rgba(36, 33, 29, 0.78);
-}
-
-.arquitech-tags {
+.arquitech-briefing-actions {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+  padding-top: 8px;
+}
+
+.arquitech-briefing-actions p {
+  flex-basis: 100%;
+  color: var(--glip-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.glip-install-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(18, 19, 15, 0.64);
+}
+
+.glip-install-dialog {
+  width: min(100%, 520px);
+  border: 1px solid var(--glip-line-dark);
+  border-radius: 8px;
+  background: var(--glip-graphite);
+  color: var(--glip-paper);
+  padding: 26px;
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.32);
+}
+
+.glip-install-dialog .arquitech-kicker {
+  color: var(--glip-stone);
+}
+
+.glip-install-dialog h2 {
+  margin: 0;
+  color: var(--glip-paper);
+  font-size: 32px;
+  line-height: 1.05;
+}
+
+.glip-install-dialog p {
+  color: rgba(244, 244, 244, 0.76);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.glip-install-dialog ol {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.glip-install-dialog li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: rgba(244, 244, 244, 0.78);
+  line-height: 1.48;
+}
+
+.glip-install-dialog li span {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--glip-line-dark);
+  border-radius: 999px;
+  color: var(--glip-sand);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.glip-install-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.glip-install-dialog-actions a,
+.glip-install-dialog-actions button {
+  min-height: 42px;
+  border: 1px solid var(--glip-line-dark);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--glip-paper);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 860;
+  padding: 0 14px;
+  text-decoration: none;
+}
+
+.glip-install-dialog-actions button:nth-of-type(1) {
+  background: var(--glip-sand);
+  color: var(--glip-ink);
+  border-color: transparent;
 }
 
 .arquitech-disclaimer {
-  max-width: 980px;
-  margin: 60px auto 0;
-  padding: clamp(32px, 6vw, 64px);
-  border-radius: 42px 42px 0 0;
+  padding: clamp(48px, 8vw, 86px) clamp(20px, 5vw, 72px);
   background: var(--glip-ink);
   color: var(--glip-paper);
   text-align: center;
 }
 
 .arquitech-disclaimer .arquitech-kicker {
-  color: #d9a06d;
+  color: var(--glip-stone);
+}
+
+.arquitech-disclaimer h2 {
+  color: var(--glip-paper);
 }
 
 .arquitech-disclaimer p {
-  color: rgba(248, 243, 234, 0.72);
-  margin-bottom: 28px;
+  max-width: 820px;
+  margin: 22px auto 30px;
+  color: rgba(244, 244, 244, 0.74);
+}
+
+.arquitech-bible-verse {
+  max-width: 720px;
+  margin: 0 auto 30px;
+  padding: 24px 0 0;
+  border-top: 1px solid var(--glip-line-dark);
+}
+
+.arquitech-bible-verse blockquote {
+  margin: 0;
+  color: var(--glip-sand);
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+  font-size: clamp(20px, 2.5vw, 30px);
+  line-height: 1.35;
+  font-style: italic;
+}
+
+.arquitech-bible-verse figcaption {
+  margin-top: 12px;
+  color: rgba(244, 244, 244, 0.58);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .arquitech-disclaimer .arquitech-primary-button {
-  background: #d9a06d;
-  color: #211d19;
+  background: var(--glip-sand);
+  color: var(--glip-ink);
+}
+
+/* AO-GLIP07 — Quem Somos com presença humana da Sabrina Hasse */
+.arquitech-founder-section {
+  padding-top: clamp(72px, 10vw, 122px);
+}
+
+.arquitech-founder-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
+  gap: clamp(34px, 7vw, 88px);
+  align-items: center;
+}
+
+.arquitech-founder-copy {
+  display: grid;
+  gap: 26px;
+}
+
+.arquitech-founder-copy .arquitech-rich-text {
+  max-width: 780px;
+}
+
+.arquitech-founder-card {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--glip-line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(244, 244, 244, 0.72));
+  box-shadow: 0 28px 80px rgba(36, 37, 29, 0.12);
+}
+
+.arquitech-founder-photo-shell {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.arquitech-founder-photo-shell img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.arquitech-founder-card figcaption {
+  display: grid;
+  gap: 10px;
+  padding: clamp(22px, 3vw, 32px);
+  border-top: 1px solid var(--glip-line);
+}
+
+.arquitech-founder-card figcaption span {
+  color: var(--glip-olive-dark);
+  font-size: 12px;
+  font-weight: 920;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.arquitech-founder-card figcaption strong {
+  color: var(--glip-graphite);
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1;
+  font-weight: 760;
+}
+
+.arquitech-founder-card figcaption p {
+  margin: 0;
+  color: rgba(36, 37, 29, 0.72);
+  font-size: 15px;
+  line-height: 1.62;
+}
+
+
+@media (max-width: 1060px) {
+  .arquitech-journey,
+  .arquitech-capability-list,
+  .arquitech-project-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 860px) {
   .arquitech-nav {
     align-items: flex-start;
     flex-direction: column;
-    margin-bottom: 44px;
+    margin-bottom: 46px;
   }
 
   .arquitech-hero-grid,
-  .arquitech-systems,
-  .arquitech-flow,
-  .arquitech-capability-list {
+  .arquitech-editorial,
+  .arquitech-global-band,
+  .arquitech-aria-section,
+  .arquitech-briefing-section,
+  .arquitech-founder-grid {
     grid-template-columns: 1fr;
   }
 
-  .arquitech-hero {
-    padding-bottom: 48px;
+  .arquitech-metrics,
+  .arquitech-journey,
+  .arquitech-capability-list,
+  .arquitech-values-grid,
+  .arquitech-project-grid {
+    grid-template-columns: 1fr;
   }
 
-  .arquitech-system-grid {
+  .arquitech-journey article,
+  .arquitech-capability-list article {
+    min-height: auto;
+  }
+
+  .arquitech-stage-note {
     grid-template-columns: 1fr;
   }
 
@@ -429,5 +933,31 @@
   .arquitech-aria-bubble {
     margin-left: 0;
     margin-right: 0;
+  }
+
+  .arquitech-briefing-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .arquitech-nav-actions {
+    gap: 10px;
+  }
+
+  .glip-install-label {
+    display: none;
+  }
+
+  .glip-install-compact-label {
+    display: inline;
+  }
+
+  .arquitech-hero h1 {
+    font-size: clamp(40px, 12vw, 56px);
+  }
+
+  .glip-install-dialog {
+    padding: 22px;
   }
 }

@@ -224,7 +224,7 @@ function getAuthPresentation({ mode, otpMode, journey }) {
       badge: "GLIP · Aria",
       title: "Crie sua conta para conversar com a Aria",
       subtitle:
-        "Acesse a GLIP Flow Intelligence com Aria como coordenadora inteligente do fluxo arquitetônico: briefing, propostas, contratos, projetos e obras.",
+        "Acesse a GLIP Intelligence Architecture com Aria como coordenadora inteligente do fluxo arquitetônico: briefing, propostas, contratos, projetos e obras.",
       panelTitle: "A GLIP preserva o contexto",
       panelBody:
         "Origem, intenção e retorno pós-login são mantidos para abrir o console diretamente no modo GLIP + Aria.",

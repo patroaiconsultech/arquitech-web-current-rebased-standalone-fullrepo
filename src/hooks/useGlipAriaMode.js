@@ -80,23 +80,70 @@ export function coerceGlipAriaAgentName(name = "Agent") {
   return raw;
 }
 
+const GLIP_ARIA_FALLBACK = [
+  "Sou Aria, a inteligência operacional da GLIP Intelligence Architecture.",
+  "",
+  "Minha especialidade é organizar o fluxo de arquitetura comercial, corporativa e médica para que briefing, proposta, contrato, projeto e obra caminhem com clareza, rastreabilidade e cuidado humano.",
+  "",
+  "Posso ajudar a GLIP assim:",
+  "",
+  "1. Briefing",
+  "Estruturo necessidades do cliente, perfil do negócio, restrições do ponto, referências, orçamento, prazo, prioridades e decisões pendentes.",
+  "",
+  "2. Proposta",
+  "Transformo o briefing em escopo comercial, etapas, entregáveis, honorários, prazos, premissas e próximos passos.",
+  "",
+  "3. Contrato",
+  "Organizo documentos, anexos, aprovações, pendências e pontos de atenção para reduzir ruído entre proposta e execução.",
+  "",
+  "4. Projeto",
+  "Apoio a memória do projeto: versões, decisões, responsáveis, arquivos, aprovações e comunicação com cliente e fornecedores.",
+  "",
+  "5. Obra",
+  "Ajudo a acompanhar visitas, cronograma, ocorrências, riscos, evidências e encaminhamentos até a entrega.",
+  "",
+  "A decisão técnica continua sendo da equipe GLIP. Eu trabalho nos bastidores para dar método, memória e clareza ao processo."
+].join("\n");
+
+function isWrongGlipRuntimeResponse(text) {
+  return (
+    /PATCH GOVERNANCE RESPONSE/i.test(text) ||
+    /patch_mode\s*:/i.test(text) ||
+    /audit_receipt_id\s*:/i.test(text) ||
+    /Artifact execut[áa]vel/i.test(text) ||
+    /Aprovar patch/i.test(text) ||
+    /Diff preview/i.test(text) ||
+    /Rollback:/i.test(text) ||
+    /AUDITORIA FOCADA/i.test(text) ||
+    /\bAO\d+[A-Z0-9_-]*\b/i.test(text) ||
+    /terminal guard/i.test(text) ||
+    /runtime principal/i.test(text) ||
+    /runtime protegido/i.test(text) ||
+    /stream principal/i.test(text) ||
+    /stream foi encerrado/i.test(text) ||
+    /recupera[çc][aã]o [úu]til/i.test(text) ||
+    /nenhuma escrita/i.test(text) ||
+    /\bbranch\b/i.test(text) ||
+    /\bdeploy\b/i.test(text) ||
+    /summit_investor/i.test(text) ||
+    /technical_audit/i.test(text) ||
+    /Router Precedence/i.test(text) ||
+    /Router AO/i.test(text) ||
+    /ORKIO|PatroAI|PATROAI/i.test(text) ||
+    /Business Plan/i.test(text) ||
+    /Business Plan vivo/i.test(text) ||
+    /agentes personalizados/i.test(text) ||
+    /equipe consultiva premium/i.test(text) ||
+    /wa\.me\/5551989697605/i.test(text)
+  );
+}
+
 export function normalizeGlipAriaAssistantContent(value = "") {
   const original = String(value || "");
   if (!original) return original;
 
-  if (
-    /AUDITORIA FOCADA/i.test(original) ||
-    /\bAO20[A-Z0-9_-]*\b/i.test(original) ||
-    /technical_audit/i.test(original) ||
-    /Router Precedence/i.test(original)
-  ) {
-    return [
-      "Sim — minha especialidade é arquitetura comercial e gestão integrada do fluxo arquitetônico.",
-      "",
-      "Eu atuo como Aria, a inteligência operacional da GLIP, para organizar briefing, proposta, contrato, projeto, documentação, obra, fornecedores, aprovações e indicadores.",
-      "",
-      "Podemos começar por um briefing, uma proposta comercial, um contrato, um cronograma de obra ou uma análise de pendências."
-    ].join("\n");
+  if (isWrongGlipRuntimeResponse(original)) {
+    return GLIP_ARIA_FALLBACK;
   }
 
   return original

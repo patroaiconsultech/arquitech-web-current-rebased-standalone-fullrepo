@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch, uploadFile, chat, chatStream, transcribeAudio, requestFounderHandoff, getRealtimeClientSecret, startRealtimeSession, startSummitSession, postRealtimeEventsBatch, endRealtimeSession, getRealtimeSession, getSummitSessionScore, submitSummitSessionReview, downloadRealtimeAta as downloadRealtimeAtaFile, guardRealtimeTranscript, getOrionSquadHealth, getOrionSquadPreview, getAgentCapabilities } from "../ui/api.js";
+import { apiFetch, uploadFile, chat, chatStream, transcribeAudio, requestFounderHandoff, getRealtimeClientSecret, startRealtimeSession, startSummitSession, postRealtimeEventsBatch, endRealtimeSession, getRealtimeSession, getSummitSessionScore, submitSummitSessionReview, downloadRealtimeAta as downloadRealtimeAtaFile, guardRealtimeTranscript, getOrionSquadHealth, getOrionSquadPreview, getAgentCapabilities, joinApi, headers as apiHeaders } from "../ui/api.js";
 import { clearSession, getTenant, getToken, getUser, isAdmin, isApproved, setSession, logout } from "../lib/auth.js";
 import { ORKIO_DEFAULT_TTS_SPEED, ORKIO_DEFAULT_VOICE_ID, ORKIO_VOICES, coerceTtsSpeed, coerceVoiceId } from "../lib/voices.js";
 import TermsModal from "../ui/TermsModal.jsx";
@@ -130,6 +130,30 @@ const ORKIO_CHAT_DIRECT_FALLBACK_ENABLED = (
 
 const WALLET_UI_ENABLED = false;
 
+const GLIP_DOCUMENT_ACCEPT = [
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".ppt",
+  ".pptx",
+  ".xls",
+  ".xlsx",
+  ".csv",
+  ".tsv",
+  ".txt",
+  ".md",
+  ".rtf",
+  ".odt",
+  ".ods",
+  ".odp",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+].join(",");
+
+const GENERATED_FILE_EXTENSIONS = ["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "csv", "tsv", "txt", "md", "rtf", "odt", "ods", "odp"];
+
 const EMPTY_STATE_PREVIEW_STEPS = [
   { title: "Readiness", description: "Shell preservado, acessos visíveis e console pronto para a primeira ação com percepção premium." },
   { title: "Focus", description: "O centro da experiência destaca a próxima melhor ação sem esconder threads, wallet e navegação." },
@@ -175,6 +199,136 @@ function isAbortLikeError(err) {
     err?.code === "CHAT_STREAM_TIMEOUT" ||
     err?.code === "FETCH_ABORTED" ||
     err?.code === "CHAT_DIRECT_TIMEOUT";
+}
+
+function safeParseJsonMaybe(value) {
+  if (!value || typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text || (!text.startsWith("{") && !text.startsWith("["))) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function inferFileNameFromUrl(url = "", fallback = "arquivo-gerado") {
+  try {
+    const parsed = new URL(String(url || ""), typeof window !== "undefined" ? window.location.origin : "http://localhost");
+    const last = decodeURIComponent(parsed.pathname.split("/").filter(Boolean).pop() || "");
+    return last || fallback;
+  } catch {
+    const clean = String(url || "").split("?")[0].split("#")[0];
+    return decodeURIComponent(clean.split("/").filter(Boolean).pop() || fallback);
+  }
+}
+
+function normalizeGeneratedFileCandidate(candidate, source = "artifact") {
+  if (!candidate || typeof candidate !== "object") return null;
+
+  const fileId = candidate.file_id || candidate.fileId || null;
+  const url =
+    candidate.download_url ||
+    candidate.downloadUrl ||
+    candidate.file_url ||
+    candidate.fileUrl ||
+    candidate.signed_url ||
+    candidate.signedUrl ||
+    candidate.public_url ||
+    candidate.publicUrl ||
+    candidate.href ||
+    candidate.url ||
+    candidate.path ||
+    (fileId ? `/api/files/${encodeURIComponent(String(fileId))}/download` : null) ||
+    null;
+
+  if (!url || typeof url !== "string") return null;
+
+  const name =
+    candidate.filename ||
+    candidate.file_name ||
+    candidate.fileName ||
+    candidate.name ||
+    candidate.title ||
+    (fileId ? `arquivo-${String(fileId).slice(0, 8)}` : "") ||
+    inferFileNameFromUrl(url);
+
+  const ext = String(candidate.extension || name.split(".").pop() || "").toLowerCase();
+  const kind =
+    ext === "pdf" ? "PDF" :
+    ["ppt", "pptx", "odp"].includes(ext) ? "Apresentação" :
+    ["xls", "xlsx", "csv", "tsv", "ods"].includes(ext) ? "Planilha" :
+    ["doc", "docx", "rtf", "odt"].includes(ext) ? "Documento" :
+    "Arquivo";
+
+  return {
+    id: `${source}:${url}:${name}`,
+    url,
+    name,
+    kind,
+    mimeType: candidate.mime_type || candidate.mimeType || candidate.content_type || candidate.contentType || "",
+  };
+}
+
+function extractGeneratedFilesFromText(text = "") {
+  const raw = String(text || "");
+  if (!raw) return [];
+
+  const escapedExt = GENERATED_FILE_EXTENSIONS.join("|");
+  const urlPattern = new RegExp(`(?:https?:\\/\\/[^\\s)\\]\"']+|\\/api\\/[^\\s)\\]\"']+|\\/files\\/[^\\s)\\]\"']+)\\.(${escapedExt})(?:\\?[^\\s)\\]\"']*)?`, "gi");
+  const out = [];
+  let match;
+  while ((match = urlPattern.exec(raw))) {
+    out.push(normalizeGeneratedFileCandidate({ url: match[0] }, "text"));
+  }
+  return out.filter(Boolean);
+}
+
+function extractGeneratedFiles(message = {}) {
+  const out = [];
+  const pushMany = (items, source) => {
+    if (Array.isArray(items)) {
+      items.forEach((item) => {
+        const normalized = normalizeGeneratedFileCandidate(item, source);
+        if (normalized) out.push(normalized);
+      });
+    } else {
+      const normalized = normalizeGeneratedFileCandidate(items, source);
+      if (normalized) out.push(normalized);
+    }
+  };
+
+  pushMany(message.artifacts, "artifacts");
+  pushMany(message, "message");
+  pushMany(message.attachments, "attachments");
+  pushMany(message.files, "files");
+  pushMany(message.generated_files, "generated_files");
+  pushMany(message.generatedFiles, "generatedFiles");
+  pushMany(message.outputs, "outputs");
+  pushMany(message.data?.artifacts, "data.artifacts");
+  pushMany(message.data?.files, "data.files");
+  pushMany(message.data?.generated_files, "data.generated_files");
+
+  const parsedContent = safeParseJsonMaybe(message.content);
+  if (parsedContent) {
+    pushMany(parsedContent.artifacts, "content.artifacts");
+    pushMany(parsedContent.attachments, "content.attachments");
+    pushMany(parsedContent.files, "content.files");
+    pushMany(parsedContent.generated_files, "content.generated_files");
+    pushMany(parsedContent.generatedFiles, "content.generatedFiles");
+    pushMany(parsedContent.outputs, "content.outputs");
+  }
+
+  extractGeneratedFilesFromText(message.content).forEach((item) => out.push(item));
+
+  const seen = new Set();
+  return out.filter((item) => {
+    if (!item?.url) return false;
+    const key = `${item.url}|${item.name}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 
@@ -4129,7 +4283,11 @@ async function sendMessage(presetMsg = null, opts = {}) {
       const canRecord = mediaRecorderSupported;
       if (canRecord && !micEnabled) startMic();
       const modeLabel = 'MediaRecorder + STT';
-      setUploadStatus(`Voice mode active (${modeLabel}) — speak naturally and Orkio will answer out loud.`);
+      setUploadStatus(
+        isArquitechMode
+          ? `Modo de voz ativo (${modeLabel}) — fale naturalmente e Aria responderá em voz alta.`
+          : `Voice mode active (${modeLabel}) — speak naturally and Orkio will answer out loud.`
+      );
       setTimeout(() => setUploadStatus(''), 4000);
     } else {
       if (micEnabled) stopMic();
@@ -5294,6 +5452,48 @@ async function stopRealtime(reason = 'client_stop') {
     }
   }
 
+  async function downloadGeneratedFile(file) {
+    const url = String(file?.url || "").trim();
+    const filename = String(file?.name || inferFileNameFromUrl(url, "arquivo-glip")).trim();
+    if (!url) return;
+
+    try {
+      const isAbsolute = /^https?:\/\//i.test(url);
+      const isSameOrigin = isAbsolute && typeof window !== "undefined" && new URL(url).origin === window.location.origin;
+
+      if (isAbsolute && !isSameOrigin) {
+        window.open(url, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      const response = await fetch(joinApi(url), {
+        method: "GET",
+        headers: apiHeaders({ token, org: tenant, json: false }),
+        credentials: "omit",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Download indisponível (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => {
+        try { URL.revokeObjectURL(objectUrl); } catch {}
+      }, 1500);
+    } catch (err) {
+      console.error("generated file download failed", err);
+      setUploadStatus(err?.message || "Não foi possível baixar o arquivo.");
+      setTimeout(() => setUploadStatus(""), 2500);
+    }
+  }
+
   function changeTtsVoice(v) {
     setTtsVoice(v);
     localStorage.setItem('orkio_tts_voice', v);
@@ -5744,7 +5944,7 @@ async function stopRealtime(reason = 'client_stop') {
       </div>
     )}
     {showTermsModal && (
-      <TermsModal onAccepted={async () => {
+      <TermsModal productLabel={isArquitechMode ? "GLIP Intelligence Architecture" : "Orkio"} onAccepted={async () => {
         setShowTermsModal(false);
         const resolvedTermsVersion = await fetchCurrentTermsVersion();
         const acceptedAt = Math.floor(Date.now() / 1000);
@@ -5906,7 +6106,7 @@ async function stopRealtime(reason = 'client_stop') {
           <div>
             <div style={{ ...styles.title, display: isMobile ? "none" : undefined }}>{threads.find((t) => t.id === threadId)?.title || "Conversa"}</div>
             <div style={{ ...styles.health, display: isMobile ? "none" : undefined }}>
-              {isArquitechMode ? "Destino: Aria • GLIP Flow Intelligence" : `Destino: ${destMode === "team" ? "Team" : destMode === "single" ? "Agente" : "Multi"} • @Team / @Orkio / @Chris / @Orion`}
+              {isArquitechMode ? "Destino: Aria • GLIP Intelligence Architecture" : `Destino: ${destMode === "team" ? "Team" : destMode === "single" ? "Agente" : "Multi"} • @Team / @Orkio / @Chris / @Orion`}
             </div>
             {isMobile ? (
               <div
@@ -6211,58 +6411,114 @@ async function stopRealtime(reason = 'client_stop') {
             <div style={styles.premiumEmptyShell}>
               <EmptyStatePremium
                 user={user}
-                onPrimaryAction={handlePremiumPrimaryAction}
-                onSecondaryAction={handlePremiumSecondaryAction}
-                onTertiaryAction={handlePremiumTertiaryAction}
+                variant={isArquitechMode ? "glip" : "orkio"}
+                onPrimaryAction={isArquitechMode ? () => sendMessage("Aria, me ajuda a estruturar um briefing inicial para um projeto comercial?") : handlePremiumPrimaryAction}
+                onSecondaryAction={isArquitechMode ? () => { fillPremiumPrompt("Aria, organize uma proposta comercial com escopo, etapas, prazos e pendências a partir deste briefing."); try { setUploadStatus("Revise o pedido antes de enviar para Aria."); setTimeout(() => setUploadStatus(""), 4200); } catch {} } : handlePremiumSecondaryAction}
+                onTertiaryAction={isArquitechMode ? () => fillPremiumPrompt("Aria, quais documentos e decisões preciso revisar antes de avançar para contrato, projeto e obra?") : handlePremiumTertiaryAction}
                 onFillPrompt={fillPremiumPrompt}
               />
 
               <div style={styles.premiumAside}>
-                <div style={styles.premiumAsideCard}>
-                  <div style={styles.premiumAsideEyebrow}>Continuity preserved</div>
-                  <div style={styles.premiumAsideTitle}>A mudança agora precisa ser impossível de ignorar</div>
-                  <div style={styles.premiumAsideText}>
-                    O shell principal continua preservado, mas o centro do console passa a comunicar
-                    direção, valor e próxima ação com mais intensidade. A ideia não é trocar a rota:
-                    é transformar a primeira percepção do produto.
-                  </div>
-
-                  <div style={styles.premiumStatusRow}>
-                    <div style={styles.premiumStatusCard}>
-                      <div style={{ ...styles.premiumStatusLabel, display: isMobile ? "none" : undefined }}>Nova conversa</div>
-                      <div style={styles.premiumStatusValue}>Preservada</div>
-                    </div>
-                    <div style={styles.premiumStatusCard}>
-                      <div style={styles.premiumStatusLabel}>Acessos</div>
-                      <div style={styles.premiumStatusValue}>{canAccessAdmin ? "Admin + usuário" : "Usuário ativo"}</div>
-                    </div>
-                    <div style={styles.premiumStatusCard}>
-                      <div style={styles.premiumStatusLabel}>Jornada</div>
-                      <div style={styles.premiumStatusValue}>Premium in-shell</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={styles.premiumAsideCard}>
-                  <div style={styles.premiumAsideEyebrow}>Execution preview</div>
-                  <ExecutionTimeline steps={EMPTY_STATE_PREVIEW_STEPS} />
-                </div>
-
-                <div style={styles.premiumAsideCard}>
-                  <div style={styles.premiumAsideEyebrow}>Telemetria executiva</div>
-                  <div style={styles.premiumAsideText}>
-                    Antes mesmo da primeira mensagem, o usuário já vê sinais concretos de prontidão,
-                    continuidade funcional e leitura executiva mais madura.
-                  </div>
-                  <div style={styles.premiumLogList}>
-                    {EMPTY_STATE_PREVIEW_LOGS.map((entry) => (
-                      <div key={entry} style={styles.premiumLogItem}>
-                        <span style={styles.premiumLogDot} />
-                        <span>{entry}</span>
+                {isArquitechMode ? (
+                  <>
+                    <div style={styles.premiumAsideCard}>
+                      <div style={styles.premiumAsideEyebrow}>Fluxo GLIP</div>
+                      <div style={styles.premiumAsideTitle}>Aria organiza a jornada antes da primeira decisão.</div>
+                      <div style={styles.premiumAsideText}>
+                        O console está preparado para transformar briefing, proposta, contrato,
+                        projeto e obra em uma sequência clara de próximos passos.
                       </div>
-                    ))}
-                  </div>
-                </div>
+
+                      <div style={styles.premiumStatusRow}>
+                        <div style={styles.premiumStatusCard}>
+                          <div style={{ ...styles.premiumStatusLabel, display: isMobile ? "none" : undefined }}>Contexto</div>
+                          <div style={styles.premiumStatusValue}>Recebido</div>
+                        </div>
+                        <div style={styles.premiumStatusCard}>
+                          <div style={styles.premiumStatusLabel}>Acesso</div>
+                          <div style={styles.premiumStatusValue}>GLIP ativo</div>
+                        </div>
+                        <div style={styles.premiumStatusCard}>
+                          <div style={styles.premiumStatusLabel}>Jornada</div>
+                          <div style={styles.premiumStatusValue}>Aria pronta</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={styles.premiumAsideCard}>
+                      <div style={styles.premiumAsideEyebrow}>Roteiro inteligente</div>
+                      <div style={styles.premiumLogList}>
+                        {[
+                          "Briefing inicial com objetivos, restrições e prioridades.",
+                          "Proposta com escopo, etapas, prazos e pendências.",
+                          "Contrato, anexos e aprovações organizados.",
+                          "Projeto e obra acompanhados com contexto preservado.",
+                        ].map((entry) => (
+                          <div key={entry} style={styles.premiumLogItem}>
+                            <span style={styles.premiumLogDot} />
+                            <span>{entry}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={styles.premiumAsideCard}>
+                      <div style={styles.premiumAsideEyebrow}>Assinatura GLIP</div>
+                      <div style={styles.premiumAsideText}>
+                        Inteligência operacional com linguagem humana, autoral e alinhada à
+                        arquitetura comercial, corporativa e médica.
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={styles.premiumAsideCard}>
+                      <div style={styles.premiumAsideEyebrow}>Continuity preserved</div>
+                      <div style={styles.premiumAsideTitle}>A mudança agora precisa ser impossível de ignorar</div>
+                      <div style={styles.premiumAsideText}>
+                        O shell principal continua preservado, mas o centro do console passa a comunicar
+                        direção, valor e próxima ação com mais intensidade. A ideia não é trocar a rota:
+                        é transformar a primeira percepção do produto.
+                      </div>
+
+                      <div style={styles.premiumStatusRow}>
+                        <div style={styles.premiumStatusCard}>
+                          <div style={{ ...styles.premiumStatusLabel, display: isMobile ? "none" : undefined }}>Nova conversa</div>
+                          <div style={styles.premiumStatusValue}>Preservada</div>
+                        </div>
+                        <div style={styles.premiumStatusCard}>
+                          <div style={styles.premiumStatusLabel}>Acessos</div>
+                          <div style={styles.premiumStatusValue}>{canAccessAdmin ? "Admin + usuário" : "Usuário ativo"}</div>
+                        </div>
+                        <div style={styles.premiumStatusCard}>
+                          <div style={styles.premiumStatusLabel}>Jornada</div>
+                          <div style={styles.premiumStatusValue}>Premium in-shell</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={styles.premiumAsideCard}>
+                      <div style={styles.premiumAsideEyebrow}>Execution preview</div>
+                      <ExecutionTimeline steps={EMPTY_STATE_PREVIEW_STEPS} />
+                    </div>
+
+                    <div style={styles.premiumAsideCard}>
+                      <div style={styles.premiumAsideEyebrow}>Telemetria executiva</div>
+                      <div style={styles.premiumAsideText}>
+                        Antes mesmo da primeira mensagem, o usuário já vê sinais concretos de prontidão,
+                        continuidade funcional e leitura executiva mais madura.
+                      </div>
+                      <div style={styles.premiumLogList}>
+                        {EMPTY_STATE_PREVIEW_LOGS.map((entry) => (
+                          <div key={entry} style={styles.premiumLogItem}>
+                            <span style={styles.premiumLogDot} />
+                            <span>{entry}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -6309,6 +6565,7 @@ async function stopRealtime(reason = 'client_stop') {
                     const visible = (!isUser && !isSystem)
                       ? normalizeGlipAssistantContent(normalizedVisible)
                       : normalizedVisible;
+                    const generatedFiles = extractGeneratedFiles(m);
 
                     return (
                       <>
@@ -6328,6 +6585,51 @@ async function stopRealtime(reason = 'client_stop') {
                         ) : (
                           <div style={styles.messageContent}>
                             {visible || m.content}
+                            {generatedFiles.length ? (
+                              <div style={{
+                                marginTop: 14,
+                                display: "grid",
+                                gap: 8,
+                              }}>
+                                <div style={{ fontSize: 12, fontWeight: 900, color: "rgba(255,255,255,0.72)" }}>
+                                  {isArquitechMode ? "Arquivos disponíveis" : "Downloads disponíveis"}
+                                </div>
+                                {generatedFiles.map((file) => (
+                                  <button
+                                    key={file.id}
+                                    type="button"
+                                    onClick={() => downloadGeneratedFile(file)}
+                                    style={{
+                                      width: "100%",
+                                      border: "1px solid rgba(255,255,255,0.12)",
+                                      borderRadius: 12,
+                                      background: "rgba(255,255,255,0.06)",
+                                      color: "#fff",
+                                      cursor: "pointer",
+                                      padding: "10px 12px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "space-between",
+                                      gap: 12,
+                                      textAlign: "left",
+                                    }}
+                                    title={`Baixar ${file.name}`}
+                                  >
+                                    <span style={{ minWidth: 0 }}>
+                                      <span style={{ display: "block", fontSize: 13, fontWeight: 900, overflowWrap: "anywhere" }}>
+                                        {file.name}
+                                      </span>
+                                      <span style={{ display: "block", marginTop: 2, fontSize: 11, color: "rgba(255,255,255,0.58)" }}>
+                                        {file.kind}
+                                      </span>
+                                    </span>
+                                    <span style={{ flex: "0 0 auto", fontSize: 13, fontWeight: 900, color: "#d2ccbe" }}>
+                                      Baixar
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
                             {!isUser && !isSystem && (visible || m.content) && (
                               <button
                                 onClick={() => playTts((visible || m.content), (m.agent_id || null), { messageId: m.id || null })}
@@ -6570,10 +6872,16 @@ async function stopRealtime(reason = 'client_stop') {
     >
       <div>
         <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.01em" }}>
-          {executionTraceExpanded ? "Execution trace" : "Ver execução"}
+          {isArquitechMode ? (executionTraceExpanded ? "Acompanhamento Aria" : "Ver acompanhamento") : (executionTraceExpanded ? "Execution trace" : "Ver execução")}
         </div>
         <div style={{ fontSize: 12, color: "rgba(255,255,255,0.62)", marginTop: 2 }}>
-          {sending
+          {isArquitechMode
+            ? sending
+              ? "Aria está organizando esta solicitação."
+              : executionTraceExpanded
+              ? "Último acompanhamento registrado pela Aria."
+              : "Acompanhamento recolhido automaticamente."
+            : sending
             ? "Orkio está executando etapas desta solicitação."
             : executionTraceExpanded
             ? "Última execução registrada no console."
@@ -6581,7 +6889,7 @@ async function stopRealtime(reason = 'client_stop') {
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        {lastTraceId ? (
+        {!isArquitechMode && lastTraceId ? (
           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.44)", fontFamily: "monospace" }}>
             {lastTraceId}
           </span>
@@ -6594,6 +6902,12 @@ async function stopRealtime(reason = 'client_stop') {
       <div style={{ padding: "0 14px 14px", display: "grid", gap: 8 }}>
         <div style={{ color: "rgba(255,255,255,0.66)", fontSize: 12, lineHeight: 1.45 }}>
           {(() => {
+            if (isArquitechMode) {
+              return executionTrace.some((step) => step.kind === "done")
+                ? "Aria concluiu a leitura desta solicitação."
+                : "Aria está organizando briefing, escopo e próximos passos.";
+            }
+
             // AO45_TRACE_LITE_HONESTY
             const last = executionTrace[executionTrace.length - 1] || {};
             const isLite =
@@ -6613,7 +6927,7 @@ async function stopRealtime(reason = 'client_stop') {
             }`;
           })()}
         </div>
-        {executionTrace[executionTrace.length - 1]?.badges?.length ? (
+        {!isArquitechMode && executionTrace[executionTrace.length - 1]?.badges?.length ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {executionTrace[executionTrace.length - 1].badges.map((badge) => (
               <span
@@ -6637,7 +6951,25 @@ async function stopRealtime(reason = 'client_stop') {
 
     {executionTraceExpanded ? (
       <div style={{ padding: "0 14px 14px", display: "grid", gap: 8 }}>
-        {executionTrace.map((step) => {
+        {(isArquitechMode
+          ? [
+              {
+                id: "glip-received",
+                kind: "status",
+                label: "Solicitação recebida",
+                detail: "Aria recebeu o contexto e está preparando uma leitura objetiva.",
+              },
+              {
+                id: "glip-organizing",
+                kind: sending ? "status" : "done",
+                label: sending ? "Organizando próximos passos" : "Leitura organizada",
+                detail: sending
+                  ? "Briefing, proposta, contrato, projeto e obra serão tratados em linguagem GLIP."
+                  : "A solicitação foi tratada no fluxo GLIP + Aria.",
+              },
+            ]
+          : executionTrace
+        ).map((step) => {
           const tone = traceStepTone(step.kind);
           return (
             <div
@@ -6656,7 +6988,7 @@ async function stopRealtime(reason = 'client_stop') {
                 <span style={{ fontSize: 13, fontWeight: 800, color: tone.color, minWidth: 0 }}>
                   {step.label}
                 </span>
-                {step.agentName ? (
+                {!isArquitechMode && step.agentName ? (
                   <span
                     style={{
                       marginLeft: "auto",
@@ -6672,7 +7004,7 @@ async function stopRealtime(reason = 'client_stop') {
                   </span>
                 ) : null}
               </div>
-              {step.badges?.length ? (
+              {!isArquitechMode && step.badges?.length ? (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {step.badges.map((badge) => (
                     <span
@@ -6776,21 +7108,19 @@ async function stopRealtime(reason = 'client_stop') {
               type="file"
               ref={fileInputRef}
               onChange={onPickFile}
-              accept=".pdf,.docx,.doc,.txt,.md"
+              accept={GLIP_DOCUMENT_ACCEPT}
               style={{ display: "none" }}
             />
 
-            {!isMobile ? (
-              <button
-                type="button"
-                style={styles.attachBtn}
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadProgress || !!pendingApprovedPatchExecution}
-                title="Anexar arquivo (PDF, DOCX, TXT)"
-              >
-                <IconPaperclip />
-              </button>
-            ) : null}
+            <button
+              type="button"
+              style={styles.attachBtn}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadProgress || !!pendingApprovedPatchExecution}
+              title={isArquitechMode ? "Anexar arquivo (PDF, PowerPoint, Excel, Word, imagem ou texto)" : "Anexar arquivo (PDF, PPTX, XLSX, DOCX, TXT)"}
+            >
+              <IconPaperclip />
+            </button>
 
             <textarea
               value={text}
@@ -7005,18 +7335,24 @@ async function stopRealtime(reason = 'client_stop') {
       {showHandoffModal ? (
         <div style={styles.modalBack} onClick={() => { if (!handoffBusy) setShowHandoffModal(false); }}>
           <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalTitle}>Talk to founder</div>
+            <div style={styles.modalTitle}>{isArquitechMode ? "Falar com a equipe GLIP" : "Talk to founder"}</div>
             <div style={styles.hint}>
-              You are about to share this conversation with the Orkio founder for follow-up.
+              {isArquitechMode
+                ? "Você está prestes a compartilhar esta conversa com a equipe GLIP para acompanhamento."
+                : "You are about to share this conversation with the founder for follow-up."}
             </div>
             <div style={{ ...styles.hint, marginTop: 8 }}>
-              Orkio will share a concise summary of your context so the next step can be strategic, not repetitive.
+              {isArquitechMode
+                ? "A Aria vai preparar um resumo objetivo do contexto para que o próximo passo seja claro e sem repetição."
+                : "The assistant will share a concise summary of your context so the next step can be strategic, not repetitive."}
             </div>
             <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", fontSize: 13, lineHeight: 1.45 }}>
-              {handoffDraft || "Your latest strategic context will be shared with the founder."}
+              {handoffDraft || (isArquitechMode ? "Seu contexto mais recente será compartilhado com a equipe GLIP." : "Your latest strategic context will be shared with the founder.")}
             </div>
             <div style={{ ...styles.hint, marginTop: 10 }}>
-              By continuing, you explicitly authorize Orkio to share this conversation summary with the founder for direct follow-up.
+              {isArquitechMode
+                ? "Ao continuar, você autoriza a Aria a compartilhar este resumo com a equipe GLIP para retorno direto."
+                : "By continuing, you explicitly authorize sharing this conversation summary with the founder for direct follow-up."}
             </div>
             <div style={styles.modalActions}>
               <button style={styles.btn} onClick={() => setShowHandoffModal(false)} disabled={handoffBusy}>Cancel</button>
@@ -7033,7 +7369,11 @@ async function stopRealtime(reason = 'client_stop') {
         <div style={styles.modalBack} onClick={() => { if (!uploadProgress) setUploadOpen(false); }}>
           <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalTitle}>Upload: {uploadFileObj?.name || "arquivo"}</div>
-            <div style={styles.hint}>Escolha como este documento será usado.</div>
+            <div style={styles.hint}>
+              {isArquitechMode
+                ? "A Aria pode ler PDFs, apresentações PowerPoint, planilhas Excel, documentos Word, imagens e textos. Escolha como este arquivo será usado."
+                : "Escolha como este documento será usado."}
+            </div>
 
             <div style={styles.radioRow}>
               <input type="radio" checked={uploadScope === "thread"} onChange={() => setUploadScope("thread")} />

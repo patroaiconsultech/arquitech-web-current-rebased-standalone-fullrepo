@@ -1,0 +1,36 @@
+{
+  "name": "AO-GLIP07_CODEX_FRONTEND_PROMOTE_WITH_SABRINA",
+  "generated_at": "2026-07-21T14:25:08.047051",
+  "source_zip": "glip-orkio-ajustes-20260721-112111.zip",
+  "notes": [
+    "Arquivos do frontend Codex foram normalizados para raiz do repo, sem prefixo audit_repos.",
+    "Imagem da Sabrina incluída em public/arquitech-assets e src/assets/images.",
+    "Landing usa caminho público direto para facilitar validação em produção."
+  ],
+  "files": [
+    "docs/AO_GLIP07_PROMOTE_CODEX_FRONTEND_README.md",
+    "index.html",
+    "public/arquitech-assets/glip-logo-horizontal.jpeg",
+    "public/arquitech-assets/glip-logo-stacked.jpeg",
+    "public/arquitech-assets/sabrina-hasse.jpeg",
+    "public/icons/glip-192.png",
+    "public/icons/glip-512.png",
+    "public/manifest.webmanifest",
+    "public/robots.txt",
+    "public/sitemap.xml",
+    "src/assets/images/sabrina-hasse.jpeg",
+    "src/components/EmptyStatePremium.jsx",
+    "src/components/GLIPInstallButton.jsx",
+    "src/components/GLIPLanguageSwitch.jsx",
+    "src/hooks/useGlipAriaMode.js",
+    "src/lib/glipLandingLocale.js",
+    "src/lib/useGlipSeo.js",
+    "src/routes/AppConsole.jsx",
+    "src/routes/ArquitechLanding.jsx",
+    "src/routes/AuthPage.jsx",
+    "src/styles/arquitech.css",
+    "src/ui/TermsModal.jsx",
+    "src/ui/api.js",
+    "tools/verify_ao_glip07_codex_frontend.py"
+  ]
+}

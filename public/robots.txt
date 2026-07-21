@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://www.patroai.com/sitemap.xml
+Sitemap: https://www.gliparquitetura.com.br/sitemap.xml

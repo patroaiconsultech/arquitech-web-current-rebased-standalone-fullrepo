@@ -7,9 +7,10 @@ import { fetchCurrentTermsVersion, getToken, markPendingTermsAccepted } from "..
  * Props:
  *   onAccepted: () => void — called after successful acceptance
  */
-export default function TermsModal({ onAccepted }) {
+export default function TermsModal({ onAccepted, productLabel = "Orkio" }) {
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState("");
+  const safeProductLabel = String(productLabel || "Orkio").trim() || "Orkio";
 
   
   const accept = async () => {
@@ -52,7 +53,7 @@ export default function TermsModal({ onAccepted }) {
       <div className="mx-4 w-full max-w-md rounded-3xl border border-white/10 bg-[#0d1117] p-8 shadow-2xl">
         <h2 className="text-xl font-black text-white">Acceptance Required</h2>
         <p className="mt-3 text-sm leading-6 text-white/70">
-          To continue using Orkio, you must accept our Terms of Use and Privacy Policy.
+          To continue using {safeProductLabel}, you must accept our Terms of Use and Privacy Policy.
         </p>
 
         {error && (
