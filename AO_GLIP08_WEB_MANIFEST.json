@@ -1,0 +1,12 @@
+{
+  "patch_id": "AO-GLIP08-WEB-ARIA-CONSOLE-LOCK",
+  "created_at": 1784644986,
+  "changed_files": [
+    "src/routes/AppConsole.jsx",
+    "src/hooks/useGlipAriaMode.js",
+    "tools/verify_ao_glip08_web_aria_console.py",
+    "docs/AO_GLIP08_WEB_ARIA_CONSOLE_README.md"
+  ],
+  "build_result_local": "npm ci OK; npm run build OK",
+  "purpose": "Promover o console standalone Arquitech/GLIP para Aria por padrão e remover a experiência antiga multiagente do fluxo público."
+}

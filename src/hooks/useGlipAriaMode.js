@@ -15,14 +15,31 @@ export function readGlipAriaConsoleMode() {
     const source = normalizeSlug(params.get("source"));
     const product = normalizeSlug(params.get("product"));
     const agent = normalizeSlug(params.get("agent"));
-    return (
+    const path = normalizeSlug(window.location.pathname || "");
+
+    const explicitNonArquitech =
+      source.includes("patroai") ||
+      source.includes("orkio") ||
+      product.includes("patroai") ||
+      product.includes("orkio") ||
+      agent === "orkio";
+
+    if (explicitNonArquitech) return false;
+
+    const explicitArquitech =
       source === "arquitech" ||
       source === "glip" ||
       product === "arquitech" ||
       product === "glip" ||
       product.includes("glip") ||
-      agent === "aria"
-    );
+      agent === "aria";
+
+    if (explicitArquitech) return true;
+
+    // AO-GLIP08: este frontend é o standalone da Arquitech/GLIP.
+    // Quando o usuário chega em /app sem querystring, a experiência correta
+    // continua sendo Aria, não o console antigo multiagente da Patroai.
+    return path === "app" || path.endsWith("/app");
   } catch {
     return false;
   }
@@ -52,6 +69,43 @@ export function findGlipAriaAgentRecord(list) {
     rows.find((agent) => isGlipAriaAgentRecord(agent)) ||
     null
   );
+}
+
+export function buildVirtualGlipAriaAgent() {
+  return {
+    id: "aria",
+    agent_key: "aria",
+    slug: "aria",
+    name: "Aria",
+    display_name: "Aria",
+    description:
+      "Inteligência operacional da GLIP para arquitetura comercial, briefing, propostas, contratos, projetos e obras.",
+    role: "glip_architecture_operator",
+    team: "glip",
+    persisted: false,
+    source_status: "virtual_frontend_fallback",
+    is_default: true,
+    voice_id: "marin",
+  };
+}
+
+export function ensureGlipAriaAgentList(list) {
+  const rows = Array.isArray(list) ? list : [];
+  const aria = findGlipAriaAgentRecord(rows);
+  if (aria) {
+    return [
+      {
+        ...aria,
+        id: aria.id || "aria",
+        agent_key: "aria",
+        slug: "aria",
+        name: "Aria",
+        display_name: "Aria",
+        is_default: true,
+      },
+    ];
+  }
+  return [buildVirtualGlipAriaAgent()];
 }
 
 export function coerceGlipAriaAgentName(name = "Agent") {

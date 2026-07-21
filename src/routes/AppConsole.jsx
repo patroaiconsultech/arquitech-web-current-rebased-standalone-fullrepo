@@ -9,7 +9,7 @@ import OnboardingModal from "../components/OnboardingModal.jsx";
 import { startSessionHeartbeat } from "../lib/sessionHeartbeat.js";
 import EmptyStatePremium from "../components/EmptyStatePremium.jsx";
 import ExecutionTimeline from "../components/ExecutionTimeline.jsx";
-import useGlipAriaMode, { readGlipAriaConsoleMode, findGlipAriaAgentRecord, coerceGlipAriaAgentName, normalizeGlipAriaAssistantContent } from "../hooks/useGlipAriaMode.js";
+import useGlipAriaMode, { readGlipAriaConsoleMode, findGlipAriaAgentRecord, ensureGlipAriaAgentList, coerceGlipAriaAgentName, normalizeGlipAriaAssistantContent } from "../hooks/useGlipAriaMode.js";
 
 function normalizeUserFacingRuntimeMessage(value, context = "") {
   const raw = String(value || "").trim();
@@ -2452,15 +2452,18 @@ useEffect(() => {
   async function loadAgents() {
     try {
       const { data } = await apiFetch("/api/agents", { token, org: tenant });
-      setAgents(data || []);
+      const rawAgents = Array.isArray(data) ? data : [];
+      const visibleAgents = isArquitechMode ? ensureGlipAriaAgentList(rawAgents) : rawAgents;
+
+      setAgents(visibleAgents || []);
       try {
         const m = new Map();
-        (data || []).forEach(a => { if (a?.name) m.set(String(a.name).trim(), a.id); });
+        (visibleAgents || []).forEach(a => { if (a?.name) m.set(String(a.name).trim(), a.id); });
         agentsByNameRef.current = m;
       } catch {}
 
-      if (isArquitechMode && Array.isArray(data) && data.length) {
-        const aria = findAriaAgentRecord(data);
+      if (isArquitechMode) {
+        const aria = findAriaAgentRecord(visibleAgents) || visibleAgents[0] || null;
         if (aria?.id) {
           setDestMode("single");
           setDestSingle(aria.id);
@@ -2476,20 +2479,20 @@ useEffect(() => {
 
       // Preserve the last manually selected agent when it still exists.
       // Do not force the console back to single-agent mode during agent reloads.
-      if (Array.isArray(data) && data.length) {
-        const orkio = data.find(a => (a.name || "").toLowerCase() === "orkio") || data.find(a => a.is_default) || data[0] || null;
+      if (Array.isArray(visibleAgents) && visibleAgents.length) {
+        const orkio = visibleAgents.find(a => (a.name || "").toLowerCase() === "orkio") || visibleAgents.find(a => a.is_default) || visibleAgents[0] || null;
 
-        const currentExists = destSingle && data.some((a) => String(a.id) === String(destSingle));
+        const currentExists = destSingle && visibleAgents.some((a) => String(a.id) === String(destSingle));
         if (!currentExists) {
           const remembered = (typeof window !== "undefined" && window.localStorage?.getItem("orkio_last_dest_single")) || "";
-          const rememberedAgent = remembered ? data.find((a) => String(a.id) === String(remembered)) : null;
+          const rememberedAgent = remembered ? visibleAgents.find((a) => String(a.id) === String(remembered)) : null;
           const nextAgent = rememberedAgent || orkio || null;
           if (nextAgent) setDestSingle(nextAgent.id);
         }
 
         setDestMulti((prev) => {
           const cleanPrev = Array.isArray(prev) ? prev.map((v) => String(v || "").trim()).filter(Boolean) : [];
-          const valid = cleanPrev.filter((id) => data.some((a) => String(a.id) === String(id)));
+          const valid = cleanPrev.filter((id) => visibleAgents.some((a) => String(a.id) === String(id)));
           if (valid.length) return Array.from(new Set(valid));
           try {
             const raw = (typeof window !== "undefined" && window.localStorage?.getItem("orkio_last_dest_multi")) || "[]";
@@ -2497,7 +2500,7 @@ useEffect(() => {
             if (Array.isArray(parsed)) {
               const restored = parsed
                 .map((v) => String(v || "").trim())
-                .filter((id) => id && data.some((a) => String(a.id) === String(id)));
+                .filter((id) => id && visibleAgents.some((a) => String(a.id) === String(id)));
               if (restored.length) return Array.from(new Set(restored));
             }
           } catch {}
