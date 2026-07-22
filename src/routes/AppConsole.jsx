@@ -10,6 +10,19 @@ import { startSessionHeartbeat } from "../lib/sessionHeartbeat.js";
 import EmptyStatePremium from "../components/EmptyStatePremium.jsx";
 import ExecutionTimeline from "../components/ExecutionTimeline.jsx";
 import useGlipAriaMode, { readGlipAriaConsoleMode, findGlipAriaAgentRecord, ensureGlipAriaAgentList, coerceGlipAriaAgentName, normalizeGlipAriaAssistantContent } from "../hooks/useGlipAriaMode.js";
+import GlipArtifactCard from "../components/documents/GlipArtifactCard.jsx";
+import {
+  GLIP_DOCUMENT_ACCEPT,
+  describeGlipCreatableFormats,
+  describeGlipReadableFormats,
+  formatGlipUploadResult,
+  getGlipDocumentSupport,
+} from "../lib/documents/glipDocumentFormats.js";
+import {
+  extractGlipArtifacts,
+  inferGlipFileNameFromUrl,
+  resolveGlipArtifactEnvelope,
+} from "../lib/documents/glipDocumentArtifacts.js";
 
 function normalizeUserFacingRuntimeMessage(value, context = "") {
   const raw = String(value || "").trim();
@@ -130,30 +143,6 @@ const ORKIO_CHAT_DIRECT_FALLBACK_ENABLED = (
 
 const WALLET_UI_ENABLED = false;
 
-const GLIP_DOCUMENT_ACCEPT = [
-  ".pdf",
-  ".doc",
-  ".docx",
-  ".ppt",
-  ".pptx",
-  ".xls",
-  ".xlsx",
-  ".csv",
-  ".tsv",
-  ".txt",
-  ".md",
-  ".rtf",
-  ".odt",
-  ".ods",
-  ".odp",
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".webp",
-].join(",");
-
-const GENERATED_FILE_EXTENSIONS = ["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "csv", "tsv", "txt", "md", "rtf", "odt", "ods", "odp"];
-
 const EMPTY_STATE_PREVIEW_STEPS = [
   { title: "Readiness", description: "Shell preservado, acessos visíveis e console pronto para a primeira ação com percepção premium." },
   { title: "Focus", description: "O centro da experiência destaca a próxima melhor ação sem esconder threads, wallet e navegação." },
@@ -201,135 +190,6 @@ function isAbortLikeError(err) {
     err?.code === "CHAT_DIRECT_TIMEOUT";
 }
 
-function safeParseJsonMaybe(value) {
-  if (!value || typeof value !== "string") return null;
-  const text = value.trim();
-  if (!text || (!text.startsWith("{") && !text.startsWith("["))) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function inferFileNameFromUrl(url = "", fallback = "arquivo-gerado") {
-  try {
-    const parsed = new URL(String(url || ""), typeof window !== "undefined" ? window.location.origin : "http://localhost");
-    const last = decodeURIComponent(parsed.pathname.split("/").filter(Boolean).pop() || "");
-    return last || fallback;
-  } catch {
-    const clean = String(url || "").split("?")[0].split("#")[0];
-    return decodeURIComponent(clean.split("/").filter(Boolean).pop() || fallback);
-  }
-}
-
-function normalizeGeneratedFileCandidate(candidate, source = "artifact") {
-  if (!candidate || typeof candidate !== "object") return null;
-
-  const fileId = candidate.file_id || candidate.fileId || null;
-  const url =
-    candidate.download_url ||
-    candidate.downloadUrl ||
-    candidate.file_url ||
-    candidate.fileUrl ||
-    candidate.signed_url ||
-    candidate.signedUrl ||
-    candidate.public_url ||
-    candidate.publicUrl ||
-    candidate.href ||
-    candidate.url ||
-    candidate.path ||
-    (fileId ? `/api/files/${encodeURIComponent(String(fileId))}/download` : null) ||
-    null;
-
-  if (!url || typeof url !== "string") return null;
-
-  const name =
-    candidate.filename ||
-    candidate.file_name ||
-    candidate.fileName ||
-    candidate.name ||
-    candidate.title ||
-    (fileId ? `arquivo-${String(fileId).slice(0, 8)}` : "") ||
-    inferFileNameFromUrl(url);
-
-  const ext = String(candidate.extension || name.split(".").pop() || "").toLowerCase();
-  const kind =
-    ext === "pdf" ? "PDF" :
-    ["ppt", "pptx", "odp"].includes(ext) ? "Apresentação" :
-    ["xls", "xlsx", "csv", "tsv", "ods"].includes(ext) ? "Planilha" :
-    ["doc", "docx", "rtf", "odt"].includes(ext) ? "Documento" :
-    "Arquivo";
-
-  return {
-    id: `${source}:${url}:${name}`,
-    url,
-    name,
-    kind,
-    mimeType: candidate.mime_type || candidate.mimeType || candidate.content_type || candidate.contentType || "",
-  };
-}
-
-function extractGeneratedFilesFromText(text = "") {
-  const raw = String(text || "");
-  if (!raw) return [];
-
-  const escapedExt = GENERATED_FILE_EXTENSIONS.join("|");
-  const urlPattern = new RegExp(`(?:https?:\\/\\/[^\\s)\\]\"']+|\\/api\\/[^\\s)\\]\"']+|\\/files\\/[^\\s)\\]\"']+)\\.(${escapedExt})(?:\\?[^\\s)\\]\"']*)?`, "gi");
-  const out = [];
-  let match;
-  while ((match = urlPattern.exec(raw))) {
-    out.push(normalizeGeneratedFileCandidate({ url: match[0] }, "text"));
-  }
-  return out.filter(Boolean);
-}
-
-function extractGeneratedFiles(message = {}) {
-  const out = [];
-  const pushMany = (items, source) => {
-    if (Array.isArray(items)) {
-      items.forEach((item) => {
-        const normalized = normalizeGeneratedFileCandidate(item, source);
-        if (normalized) out.push(normalized);
-      });
-    } else {
-      const normalized = normalizeGeneratedFileCandidate(items, source);
-      if (normalized) out.push(normalized);
-    }
-  };
-
-  pushMany(message.artifacts, "artifacts");
-  pushMany(message, "message");
-  pushMany(message.attachments, "attachments");
-  pushMany(message.files, "files");
-  pushMany(message.generated_files, "generated_files");
-  pushMany(message.generatedFiles, "generatedFiles");
-  pushMany(message.outputs, "outputs");
-  pushMany(message.data?.artifacts, "data.artifacts");
-  pushMany(message.data?.files, "data.files");
-  pushMany(message.data?.generated_files, "data.generated_files");
-
-  const parsedContent = safeParseJsonMaybe(message.content);
-  if (parsedContent) {
-    pushMany(parsedContent.artifacts, "content.artifacts");
-    pushMany(parsedContent.attachments, "content.attachments");
-    pushMany(parsedContent.files, "content.files");
-    pushMany(parsedContent.generated_files, "content.generated_files");
-    pushMany(parsedContent.generatedFiles, "content.generatedFiles");
-    pushMany(parsedContent.outputs, "content.outputs");
-  }
-
-  extractGeneratedFilesFromText(message.content).forEach((item) => out.push(item));
-
-  const seen = new Set();
-  return out.filter((item) => {
-    if (!item?.url) return false;
-    const key = `${item.url}|${item.name}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
 
 
 
@@ -2285,6 +2145,8 @@ useEffect(() => {
     finalAgentId = null,
     finalVoiceId = null,
     finalAvatarUrl = null,
+    finalArtifact = null,
+    finalArtifacts = [],
     turnStartedAt = 0,
   } = {}) {
     const tid = String(turnThreadId || "").trim();
@@ -2310,6 +2172,8 @@ useEffect(() => {
             agent_id: m.agent_id || finalAgentId || null,
             voice_id: m.voice_id || finalVoiceId || null,
             avatar_url: m.avatar_url || finalAvatarUrl || null,
+            artifact: finalArtifact || m.artifact || null,
+            artifacts: finalArtifacts.length ? finalArtifacts : (m.artifacts || []),
             finalized_locally: true,
           };
         });
@@ -2335,6 +2199,8 @@ useEffect(() => {
             agent_id: finalAgentId || null,
             voice_id: finalVoiceId || null,
             avatar_url: finalAvatarUrl || null,
+            artifact: finalArtifact || null,
+            artifacts: finalArtifacts,
             finalized_locally: true,
             created_at: Math.floor(Date.now() / 1000),
           },
@@ -2391,6 +2257,8 @@ useEffect(() => {
             agent_id: finalAgentId || null,
             voice_id: finalVoiceId || null,
             avatar_url: finalAvatarUrl || null,
+            artifact: finalArtifact || null,
+            artifacts: finalArtifacts,
             created_at: Math.floor(Date.now() / 1000),
           },
         ];
@@ -2406,6 +2274,8 @@ useEffect(() => {
                 agent_id: m.agent_id || finalAgentId || null,
                 voice_id: m.voice_id || finalVoiceId || null,
                 avatar_url: m.avatar_url || finalAvatarUrl || null,
+                artifact: finalArtifact || m.artifact || null,
+                artifacts: finalArtifacts.length ? finalArtifacts : (m.artifacts || []),
                 finalized_locally: true,
               }
             : m
@@ -3624,6 +3494,12 @@ async function sendMessage(presetMsg = null, opts = {}) {
         streamDonePayload?.avatar_url ||
         streamMeta?.done_payload?.avatar_url ||
         null;
+      const finalArtifactEnvelope = resolveGlipArtifactEnvelope(
+        streamDonePayload,
+        streamMeta?.done_payload,
+        resp?.data,
+        streamMeta
+      );
 
       if (effectiveTidForLoad) {
         consumeStoredThreadBootstrap(effectiveTidForLoad);
@@ -3651,6 +3527,8 @@ async function sendMessage(presetMsg = null, opts = {}) {
             finalAgentId,
             finalVoiceId,
             finalAvatarUrl,
+            finalArtifact: finalArtifactEnvelope.artifact,
+            finalArtifacts: finalArtifactEnvelope.artifacts,
             turnStartedAt,
           })
         : await finalizeChatTurn({
@@ -3661,6 +3539,8 @@ async function sendMessage(presetMsg = null, opts = {}) {
             finalAgentId,
             finalVoiceId,
             finalAvatarUrl,
+            finalArtifact: finalArtifactEnvelope.artifact,
+            finalArtifacts: finalArtifactEnvelope.artifacts,
             turnStartedAt,
           });
 
@@ -3704,6 +3584,8 @@ async function sendMessage(presetMsg = null, opts = {}) {
             agent_id: finalAgentId || null,
             voice_id: finalVoiceId || null,
             avatar_url: finalAvatarUrl || null,
+            artifact: finalArtifactEnvelope.artifact,
+            artifacts: finalArtifactEnvelope.artifacts,
             thread_id: effectiveTidForLoad || threadId || activeThreadIdRef.current || "",
             assistant_message_id: doneAssistantMessageId || null,
             created_at: Math.floor(Date.now() / 1000),
@@ -5457,7 +5339,7 @@ async function stopRealtime(reason = 'client_stop') {
 
   async function downloadGeneratedFile(file) {
     const url = String(file?.url || "").trim();
-    const filename = String(file?.name || inferFileNameFromUrl(url, "arquivo-glip")).trim();
+    const filename = String(file?.name || inferGlipFileNameFromUrl(url, "arquivo-glip")).trim();
     if (!url) return;
 
     try {
@@ -5507,6 +5389,16 @@ async function stopRealtime(reason = 'client_stop') {
     const f = e.target.files?.[0];
     if (!f) return;
     e.target.value = "";
+
+    const support = getGlipDocumentSupport(f);
+    if (isArquitechMode && !support.supported) {
+      setUploadStatus(
+        `Formato não suportado para leitura pela Aria. Use: ${describeGlipReadableFormats()}.`
+      );
+      setTimeout(() => setUploadStatus(""), 3500);
+      return;
+    }
+
     setUploadFileObj(f);
     setUploadScope("thread");
     setUploadAgentIds([]);
@@ -5534,8 +5426,17 @@ async function stopRealtime(reason = 'client_stop') {
 
       if (uploadScope === "thread") {
         console.info("[Upload] start", { scope: "thread", filename: f?.name, threadId: effectiveThreadId, size: f?.size || null });
-        await uploadFile(f, { token, org: tenant, threadId: effectiveThreadId, intent: "chat" });
-        setUploadStatus("Arquivo anexado à conversa ✅");
+        const uploadResult = await uploadFile(f, {
+          token,
+          org: tenant,
+          threadId: effectiveThreadId,
+          intent: "chat",
+        });
+        setUploadStatus(
+          isArquitechMode
+            ? formatGlipUploadResult(uploadResult, f?.name)
+            : "Arquivo anexado à conversa ✅"
+        );
         try { await loadMessages(effectiveThreadId, { force: true, expectedEpoch: activeThreadEpochRef.current }); } catch {}
       } else if (uploadScope === "agents") {
         console.info("[Upload] start", { scope: "agents", filename: f?.name, agentIds: uploadAgentIds, size: f?.size || null });
@@ -6568,7 +6469,7 @@ async function stopRealtime(reason = 'client_stop') {
                     const visible = (!isUser && !isSystem)
                       ? normalizeGlipAssistantContent(normalizedVisible)
                       : normalizedVisible;
-                    const generatedFiles = extractGeneratedFiles(m);
+                    const generatedFiles = extractGlipArtifacts(m);
 
                     return (
                       <>
@@ -6598,38 +6499,11 @@ async function stopRealtime(reason = 'client_stop') {
                                   {isArquitechMode ? "Arquivos disponíveis" : "Downloads disponíveis"}
                                 </div>
                                 {generatedFiles.map((file) => (
-                                  <button
+                                  <GlipArtifactCard
                                     key={file.id}
-                                    type="button"
-                                    onClick={() => downloadGeneratedFile(file)}
-                                    style={{
-                                      width: "100%",
-                                      border: "1px solid rgba(255,255,255,0.12)",
-                                      borderRadius: 12,
-                                      background: "rgba(255,255,255,0.06)",
-                                      color: "#fff",
-                                      cursor: "pointer",
-                                      padding: "10px 12px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "space-between",
-                                      gap: 12,
-                                      textAlign: "left",
-                                    }}
-                                    title={`Baixar ${file.name}`}
-                                  >
-                                    <span style={{ minWidth: 0 }}>
-                                      <span style={{ display: "block", fontSize: 13, fontWeight: 900, overflowWrap: "anywhere" }}>
-                                        {file.name}
-                                      </span>
-                                      <span style={{ display: "block", marginTop: 2, fontSize: 11, color: "rgba(255,255,255,0.58)" }}>
-                                        {file.kind}
-                                      </span>
-                                    </span>
-                                    <span style={{ flex: "0 0 auto", fontSize: 13, fontWeight: 900, color: "#d2ccbe" }}>
-                                      Baixar
-                                    </span>
-                                  </button>
+                                    file={file}
+                                    onDownload={downloadGeneratedFile}
+                                  />
                                 ))}
                               </div>
                             ) : null}
@@ -7120,7 +6994,7 @@ async function stopRealtime(reason = 'client_stop') {
               style={styles.attachBtn}
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadProgress || !!pendingApprovedPatchExecution}
-              title={isArquitechMode ? "Anexar arquivo (PDF, PowerPoint, Excel, Word, imagem ou texto)" : "Anexar arquivo (PDF, PPTX, XLSX, DOCX, TXT)"}
+              title={isArquitechMode ? `Anexar arquivo (${describeGlipReadableFormats()})` : "Anexar arquivo (PDF, PPTX, XLSX, DOCX, TXT)"}
             >
               <IconPaperclip />
             </button>
@@ -7371,49 +7245,53 @@ async function stopRealtime(reason = 'client_stop') {
       {uploadOpen ? (
         <div style={styles.modalBack} onClick={() => { if (!uploadProgress) setUploadOpen(false); }}>
           <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalTitle}>Upload: {uploadFileObj?.name || "arquivo"}</div>
+            <div style={styles.modalTitle}>Anexar: {uploadFileObj?.name || "arquivo"}</div>
             <div style={styles.hint}>
               {isArquitechMode
-                ? "A Aria pode ler PDFs, apresentações PowerPoint, planilhas Excel, documentos Word, imagens e textos. Escolha como este arquivo será usado."
+                ? `A Aria lê ${describeGlipReadableFormats()} e pode criar ${describeGlipCreatableFormats()}. O arquivo ficará restrito a esta conversa.`
                 : "Escolha como este documento será usado."}
             </div>
 
             <div style={styles.radioRow}>
               <input type="radio" checked={uploadScope === "thread"} onChange={() => setUploadScope("thread")} />
-              <span>Somente nesta conversa (contexto do thread)</span>
+              <span>{isArquitechMode ? "Usar neste projeto com a Aria" : "Somente nesta conversa (contexto do thread)"}</span>
             </div>
 
-            <div style={styles.radioRow}>
-              <input type="radio" checked={uploadScope === "agents"} onChange={() => setUploadScope("agents")} />
-              <span>Vincular a agente(s) específico(s)</span>
-            </div>
+            {!isArquitechMode ? (
+              <>
+                <div style={styles.radioRow}>
+                  <input type="radio" checked={uploadScope === "agents"} onChange={() => setUploadScope("agents")} />
+                  <span>Vincular a agente(s) específico(s)</span>
+                </div>
 
-            {uploadScope === "agents" ? (
-              <div style={styles.checkGrid}>
-                {agents.map(a => (
-                  <label key={a.id} style={styles.checkItem}>
-                    <input
-                      type="checkbox"
-                      checked={uploadAgentIds.includes(a.id)}
-                      onChange={(e) => {
-                        setUploadAgentIds(prev => e.target.checked ? [...prev, a.id] : prev.filter(x => x !== a.id));
-                      }}
-                    />
-                    <span>{a.name}</span>
-                  </label>
-                ))}
-              </div>
+                {uploadScope === "agents" ? (
+                  <div style={styles.checkGrid}>
+                    {agents.map(a => (
+                      <label key={a.id} style={styles.checkItem}>
+                        <input
+                          type="checkbox"
+                          checked={uploadAgentIds.includes(a.id)}
+                          onChange={(e) => {
+                            setUploadAgentIds(prev => e.target.checked ? [...prev, a.id] : prev.filter(x => x !== a.id));
+                          }}
+                        />
+                        <span>{a.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div style={styles.radioRow}>
+                  <input type="radio" checked={uploadScope === "institutional"} onChange={() => setUploadScope("institutional")} />
+                  <span>Institucional (global do tenant → todos os agentes)</span>
+                </div>
+                <div style={styles.hint}>
+                  {canAccessAdmin
+                    ? "Como admin, o documento vira institucional imediatamente."
+                    : "Como usuário, isso vira uma solicitação para o admin aprovar ou reprovar."}
+                </div>
+              </>
             ) : null}
-
-            <div style={styles.radioRow}>
-              <input type="radio" checked={uploadScope === "institutional"} onChange={() => setUploadScope("institutional")} />
-              <span>Institucional (global do tenant → todos os agentes)</span>
-            </div>
-            <div style={styles.hint}>
-              {canAccessAdmin
-                ? "Como admin, o documento vira institucional imediatamente."
-                : "Como usuário, isso vira uma SOLICITAÇÃO para o admin aprovar/reprovar. Enquanto isso, ele fica disponível nesta conversa."}
-            </div>
 
             <div style={styles.modalActions}>
               <button style={styles.btn} onClick={() => { if (!uploadProgress) setUploadOpen(false); }}>Cancelar</button>
