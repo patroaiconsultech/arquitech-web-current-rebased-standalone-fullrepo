@@ -228,7 +228,7 @@ export function buildGlipAriaDestinationContract(agents = []) {
     product: "arquitech",
     context_mode: "glip_aria",
     runtime_persona: "glip_aria_architecture",
-    persona_lock: "glip_aria_architecture",
+    persona_lock: true,
   };
 }
 
