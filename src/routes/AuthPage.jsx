@@ -489,7 +489,13 @@ function PasswordField({
 export default function AuthPage() {
   const nav = useNavigate();
   const location = useLocation();
-  const [tenant] = useState("public");
+  const canonicalTenant = String(
+    import.meta.env.VITE_GLIP_TENANT || "arquitech",
+  )
+    .trim()
+    .replace(/^[\'"]|[\'"]$/g, "")
+    .toLowerCase() || "arquitech";
+  const [tenant] = useState(canonicalTenant);
 
   const initialMode = (() => {
     try {
@@ -647,7 +653,7 @@ export default function AuthPage() {
   }
 
   async function finalizeSession(data, resolvedTenant) {
-    const nextTenant = resolvedTenant || tenant || "public";
+    const nextTenant = resolvedTenant || tenant || canonicalTenant;
 
     setTenant(nextTenant);
 
