@@ -371,11 +371,11 @@ export function mergeUserFromApiMe(apiUser) {
  * =========================
  */
 
-export function markPendingTermsAccepted(termsVersion = "2026-03-01") {
+export function markPendingTermsAccepted(termsVersion = "2026-07-24") {
   const payload = {
     accepted: true,
     accepted_at: Date.now(),
-    terms_version: String(termsVersion || "2026-03-01"),
+    terms_version: String(termsVersion || "2026-07-24"),
   };
   localStorage.setItem(TERMS_PENDING_KEY, JSON.stringify(payload));
   localStorage.setItem(TERMS_VERSION_KEY, payload.terms_version);
@@ -397,7 +397,7 @@ export function clearPendingTermsAccepted() {
 }
 
 export function getAcceptedTermsVersion() {
-  return localStorage.getItem(TERMS_VERSION_KEY) || "2026-03-01";
+  return localStorage.getItem(TERMS_VERSION_KEY) || "2026-07-24";
 }
 
 /**
@@ -440,14 +440,21 @@ export async function fetchCurrentTermsVersion() {
         credentials: "include",
         headers: { "Cache-Control": "no-cache" },
       });
-      if (!res.ok) throw new Error(`terms version request failed: ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`Não foi possível consultar a versão jurídica vigente (${res.status}).`);
+      }
+
       const data = await res.json();
-      const version = String(data?.version || "").trim() || getAcceptedTermsVersion();
+      const version = String(data?.version || data?.terms_version || "").trim();
+      if (!version) {
+        throw new Error("A resposta jurídica não informou uma versão válida.");
+      }
+
       termsVersionCache = version;
-      try { localStorage.setItem(TERMS_VERSION_KEY, version); } catch {}
+      try {
+        localStorage.setItem(TERMS_VERSION_KEY, version);
+      } catch {}
       return version;
-    } catch {
-      return getAcceptedTermsVersion();
     } finally {
       termsVersionInFlight = null;
     }

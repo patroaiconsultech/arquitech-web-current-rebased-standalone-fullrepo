@@ -104,8 +104,8 @@ export default function LegalFooter({ compact = false, locale = "pt" }) {
       </div>
 
       <nav className="orkio-legal-footer__links" aria-label={copy.navAria}>
-        <a href="/legal/terms.html" target="_blank" rel="noreferrer">{copy.terms}</a>
-        <a href="/legal/privacy.html" target="_blank" rel="noreferrer">{copy.privacy}</a>
+        <a href="/legal/terms" target="_blank" rel="noreferrer">{copy.terms}</a>
+        <a href="/legal/privacy" target="_blank" rel="noreferrer">{copy.privacy}</a>
         <a href="/auth?mode=register&legal=1">{copy.register}</a>
       </nav>
     </section>
